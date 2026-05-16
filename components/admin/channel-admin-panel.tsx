@@ -7,6 +7,7 @@ import { FoldersManager } from "@/components/settings/folders-manager"
 import { usePlaylistStore } from "@/lib/store/playlist-store"
 import { useChannelManagementStore } from "@/lib/store/channel-management-store"
 import { groupChannelsByCountry, sortCountries } from "@/lib/country-detector"
+import { Channel } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 export function ChannelAdminPanel() {
@@ -34,13 +35,13 @@ export function ChannelAdminPanel() {
     return sortCountries(grouped, ["IL", "US", "UK"])
   }, [allChannels])
 
-  const handleDeleteChannel = (channel: any) => {
+  const handleDeleteChannel = (channel: Channel) => {
     if (confirm(`Delete "${channel.name}"? You can restore it from trash.`)) {
       deleteChannel(channel)
     }
   }
 
-  const handleDeleteCountry = (countryCode: string, countryName: string, channels: any[]) => {
+  const handleDeleteCountry = (countryCode: string, countryName: string, channels: Channel[]) => {
     if (
       confirm(
         `Delete all ${channels.length} channels from "${countryName}"?\n\nYou can restore them from trash.`

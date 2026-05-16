@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, lazy, Suspense, useState, useCallback } from "react"
-import { History, X } from "lucide-react"
+import Image from "next/image"
 import { MainLayout } from "@/components/layout/main-layout"
 import { WelcomeScreen } from "@/components/welcome-screen"
 import { ErrorBoundary } from "@/components/error-boundary"
@@ -100,8 +100,7 @@ export default function Home() {
   })
 
   // Handle catchup playback
-  const handlePlayCatchup = useCallback((url: string, program: EPGProgram) => {
-    console.log("[Catchup] Playing:", program.title, "URL:", url)
+  const handlePlayCatchup = useCallback((url: string, _program: EPGProgram) => {
     setCatchupUrl(url)
     setShowCatchup(false)
   }, [])
@@ -172,11 +171,13 @@ export default function Home() {
                 <div className="flex items-start gap-3">
                   {/* Channel Logo */}
                   {currentChannel.logo && (
-                    <div className="w-16 h-12 rounded-lg bg-muted/50 flex items-center justify-center overflow-hidden flex-shrink-0">
-                      <img 
-                        src={currentChannel.logo} 
+                    <div className="w-16 h-12 rounded-lg bg-muted/50 flex items-center justify-center overflow-hidden flex-shrink-0 relative">
+                      <Image
+                        src={currentChannel.logo}
                         alt={currentChannel.name}
-                        className="w-full h-full object-contain p-1"
+                        fill
+                        className="object-contain p-1"
+                        unoptimized
                       />
                     </div>
                   )}

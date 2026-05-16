@@ -40,47 +40,49 @@ export function StreamInfoOverlay({ hls, videoElement, isVisible, onClose }: Str
     if (!isVisible || !videoElement) return
 
     const updateInfo = () => {
-      const newInfo: StreamInfo = { ...info }
+      setInfo(prev => {
+        const newInfo: StreamInfo = { ...prev }
 
-      // Resolution
-      if (videoElement.videoWidth && videoElement.videoHeight) {
-        newInfo.resolution = `${videoElement.videoWidth}x${videoElement.videoHeight}`
-      }
+        // Resolution
+        if (videoElement.videoWidth && videoElement.videoHeight) {
+          newInfo.resolution = `${videoElement.videoWidth}x${videoElement.videoHeight}`
+        }
 
-      // Buffer info
-      if (videoElement.buffered.length > 0) {
-        const buffered = videoElement.buffered.end(videoElement.buffered.length - 1) - videoElement.currentTime
-        newInfo.buffered = `${buffered.toFixed(1)}s`
-      }
+        // Buffer info
+        if (videoElement.buffered.length > 0) {
+          const buffered = videoElement.buffered.end(videoElement.buffered.length - 1) - videoElement.currentTime
+          newInfo.buffered = `${buffered.toFixed(1)}s`
+        }
 
-      // Dropped frames (if available)
-      const quality = (videoElement as HTMLVideoElement & { getVideoPlaybackQuality?: () => VideoPlaybackQuality }).getVideoPlaybackQuality?.()
-      if (quality) {
-        newInfo.dropped = quality.droppedVideoFrames
-      }
+        // Dropped frames (if available)
+        const quality = (videoElement as HTMLVideoElement & { getVideoPlaybackQuality?: () => VideoPlaybackQuality }).getVideoPlaybackQuality?.()
+        if (quality) {
+          newInfo.dropped = quality.droppedVideoFrames
+        }
 
-      // HLS-specific info
-      if (hls) {
-        const level = hls.levels[hls.currentLevel]
-        if (level) {
-          newInfo.bitrate = `${(level.bitrate / 1000000).toFixed(2)} Mbps`
-          newInfo.codec = level.videoCodec || level.audioCodec || "-"
-          if (level.frameRate) {
-            newInfo.fps = `${level.frameRate} fps`
+        // HLS-specific info
+        if (hls) {
+          const level = hls.levels[hls.currentLevel]
+          if (level) {
+            newInfo.bitrate = `${(level.bitrate / 1000000).toFixed(2)} Mbps`
+            newInfo.codec = level.videoCodec || level.audioCodec || "-"
+            if (level.frameRate) {
+              newInfo.fps = `${level.frameRate} fps`
+            }
           }
+
+          // Latency
+          if (hls.latency !== undefined) {
+            newInfo.latency = `${hls.latency.toFixed(1)}s`
+          }
+
+          // Audio tracks
+          newInfo.audioTracks = hls.audioTracks?.length || 0
+          newInfo.subtitleTracks = hls.subtitleTracks?.length || 0
         }
 
-        // Latency
-        if (hls.latency !== undefined) {
-          newInfo.latency = `${hls.latency.toFixed(1)}s`
-        }
-
-        // Audio tracks
-        newInfo.audioTracks = hls.audioTracks?.length || 0
-        newInfo.subtitleTracks = hls.subtitleTracks?.length || 0
-      }
-
-      setInfo(newInfo)
+        return newInfo
+      })
     }
 
     updateInfo()

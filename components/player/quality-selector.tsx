@@ -2,10 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { Settings } from "lucide-react"
+import videojs from "video.js"
 import { cn } from "@/lib/utils"
 
+type QualityLevel = { height: number; enabled: boolean }
+type VjsPlayer = ReturnType<typeof videojs> & {
+  qualityLevels?: () => QualityLevel[] & { length: number }
+}
+
 interface QualitySelectorProps {
-  player: any
+  player: VjsPlayer | null
   className?: string
 }
 
@@ -46,7 +52,7 @@ export function QualitySelector({ player, className }: QualitySelectorProps) {
 
   const handleQualityChange = (quality: string) => {
     try {
-      const levels = player.qualityLevels?.()
+      const levels = player?.qualityLevels?.()
       if (!levels) return
 
       if (quality === "auto") {

@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Channel } from "@/lib/types"
 import videojs from "video.js"
-import Hls from "hls.js"
+import Hls, { type Level } from "hls.js"
+
+type QualityLevel = { height: number; enabled: boolean }
+type VjsPlayer = ReturnType<typeof videojs> & {
+  qualityLevels?: () => QualityLevel[] & { length: number }
+}
 import "video.js/dist/video-js.css"
 import { chromecastManager } from "@/lib/chromecast"
 import { CastButton } from "./cast-button"
@@ -25,7 +30,7 @@ interface VideoPlayerProps {
 
 export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }: VideoPlayerProps) {
   const videoRef = useRef<HTMLDivElement>(null)
-  const playerRef = useRef<any>(null)
+  const playerRef = useRef<VjsPlayer | null>(null)
   const videoElementRef = useRef<HTMLVideoElement | null>(null)
   const hlsRef = useRef<Hls | null>(null)
   const watchTimeRef = useRef<number>(0)
@@ -34,7 +39,7 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
   const [error, setError] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
   const [isCasting, setIsCasting] = useState(false)
-  const [qualityLevels, setQualityLevels] = useState<any[]>([])
+  const [qualityLevels, setQualityLevels] = useState<Level[]>([])
   const [needsUserInteraction, setNeedsUserInteraction] = useState(false)
   const [showChannelInfo, setShowChannelInfo] = useState(true)
   const [showVolumeIndicator, setShowVolumeIndicator] = useState(false)
@@ -274,7 +279,7 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         type: "application/x-mpegURL",
       })
       player.load()
-      player.play().catch((err: Error) => {
+      player.play()?.catch((err: Error) => {
         console.error("Autoplay failed:", err)
         setIsLoading(false)
       })
@@ -306,7 +311,7 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
     } else {
       // Resume local playback when casting ends
       if (playerRef.current) {
-        playerRef.current.play().catch(console.error)
+        playerRef.current.play()?.catch(console.error)
       }
     }
   }

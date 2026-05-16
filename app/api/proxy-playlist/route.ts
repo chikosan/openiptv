@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 
 export const runtime = "edge" // Use Edge Runtime for better performance
 
+// Reject hostnames that resolve to private/internal ranges to prevent SSRF.
+// This covers IPv4 private, loopback, link-local, and cloud metadata endpoints.
+const PRIVATE_HOST_PATTERN =
+  /^(localhost|.*\.local(host)?|.*\.internal)$|^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|0\.|169\.254\.|[fF][cCdD]|::1)/
+
+function isPrivateHost(hostname: string): boolean {
+  return PRIVATE_HOST_PATTERN.test(hostname)
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const url = searchParams.get("url")
@@ -13,12 +22,19 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Validate URL format
+  // Validate URL format and block SSRF targets
+  let parsedUrl: URL
   try {
-    const parsedUrl = new URL(url)
+    parsedUrl = new URL(url)
     if (!["http:", "https:"].includes(parsedUrl.protocol)) {
       return NextResponse.json(
         { error: "Invalid URL protocol" },
+        { status: 400 }
+      )
+    }
+    if (isPrivateHost(parsedUrl.hostname)) {
+      return NextResponse.json(
+        { error: "URL target is not allowed" },
         { status: 400 }
       )
     }
