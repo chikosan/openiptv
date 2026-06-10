@@ -148,9 +148,9 @@ export default function Home() {
 
   return (
     <MainLayout>
-      <div className="flex flex-col lg:flex-row h-[calc(100vh-3.5rem)] overflow-hidden">
+      <div className="flex flex-col lg:flex-row h-full overflow-hidden">
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col gap-4 p-2 md:p-4 overflow-y-auto">
+        <div className="flex-none max-h-[60dvh] lg:max-h-none lg:flex-1 flex flex-col gap-2 md:gap-4 p-2 md:p-4 overflow-y-auto">
           {/* Continue Watching Section (Netflix-style) */}
           {!currentChannel && <ContinueWatching onChannelSelect={setCurrentChannel} className="flex-shrink-0" />}
 
@@ -274,10 +274,10 @@ export default function Home() {
           )}
         </div>
 
-        {/* Channel List Sidebar - Fixed height with independent scroll */}
+        {/* Channel List Sidebar - fills remaining space on mobile, fixed column on desktop */}
         <div
           data-channel-list
-          className="w-full lg:w-96 h-[40vh] lg:h-full flex-shrink-0 border-t lg:border-t-0 lg:border-l"
+          className="w-full lg:w-80 xl:w-96 2xl:w-[26rem] flex-1 min-h-0 lg:flex-none lg:h-full border-t lg:border-t-0 lg:border-l pb-[env(safe-area-inset-bottom)] lg:pb-0"
         >
           <ErrorBoundary>
             <Suspense fallback={<ChannelListSkeleton count={8} viewMode={ui.viewMode} />}>

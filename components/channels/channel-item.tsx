@@ -96,6 +96,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           className={cn(
             "relative group p-3 rounded-xl border transition-all duration-300 cursor-pointer",
             "hover:border-primary hover:shadow-xl hover:shadow-primary/20 hover:scale-105 hover:-translate-y-1",
+            "active:scale-[0.98]",
             isActive
               ? "border-primary bg-gradient-to-br from-primary/20 to-primary/5 ring-2 ring-primary/50"
               : "bg-card hover:bg-card/80",
@@ -179,17 +180,18 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
             </div>
           )}
 
-          {/* Action Buttons - Show on hover */}
+          {/* Action Buttons - always visible on touch, hover-revealed on desktop */}
           <div
             className={cn(
               "absolute bottom-2 right-2 flex gap-1 transition-all duration-300 tv-focus-reveal",
-              isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
+              "opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2",
+              isHovered && "lg:opacity-100 lg:translate-y-0",
             )}
           >
             <button
               onClick={handleFavoriteClick}
               className={cn(
-                "p-2 rounded-full backdrop-blur-md transition-all duration-200",
+                "p-2 min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0 inline-flex items-center justify-center rounded-full backdrop-blur-md transition-all duration-200",
                 channel.isFavorite ? "bg-yellow-500/30 hover:bg-yellow-500/50" : "bg-black/50 hover:bg-black/70",
               )}
               title={channel.isFavorite ? "Remove from favorites" : "Add to favorites"}
@@ -198,7 +200,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
             </button>
             <button
               onClick={handleDeleteClick}
-              className="p-2 rounded-full bg-black/50 hover:bg-destructive/80 backdrop-blur-md transition-all duration-200"
+              className="p-2 min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0 inline-flex items-center justify-center rounded-full bg-black/50 hover:bg-destructive/80 backdrop-blur-md transition-all duration-200"
               title="Delete channel"
             >
               <Trash2 className="h-4 w-4 text-white" />
@@ -234,6 +236,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
         className={cn(
           "w-full group flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 cursor-pointer relative",
           "hover:bg-gradient-to-r hover:from-primary/20 hover:to-transparent hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10",
+          "active:scale-[0.99] active:bg-primary/10",
           isActive && "bg-gradient-to-r from-primary/30 to-primary/10 border-l-4 border-primary",
           isDragging && "opacity-50 scale-95",
         )}
@@ -315,17 +318,18 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           )}
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons - always visible on touch, hover-revealed on desktop */}
         <div
           className={cn(
             "flex items-center gap-0.5 flex-shrink-0 transition-opacity duration-200 tv-focus-reveal",
-            isHovered ? "opacity-100" : "opacity-0",
+            "opacity-100 lg:opacity-0",
+            isHovered && "lg:opacity-100",
           )}
         >
           <button
             onClick={handleFavoriteClick}
             className={cn(
-              "p-1.5 rounded-full transition-all duration-200",
+              "p-1.5 min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0 inline-flex items-center justify-center rounded-full transition-all duration-200",
               channel.isFavorite ? "bg-yellow-500/20 hover:bg-yellow-500/30" : "hover:bg-accent",
             )}
             title={channel.isFavorite ? "Remove from favorites" : "Add to favorites"}
@@ -341,16 +345,16 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           </button>
           <button
             onClick={handleDeleteClick}
-            className="p-1.5 rounded-full hover:bg-destructive/20 transition-all duration-200"
+            className="p-1.5 min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0 inline-flex items-center justify-center rounded-full hover:bg-destructive/20 transition-all duration-200"
             title="Delete channel"
           >
             <Trash2 className="h-4 w-4 text-destructive/70 hover:text-destructive hover:scale-110 transition-all duration-200" />
           </button>
         </div>
 
-        {/* Favorite indicator (always visible if favorited) */}
+        {/* Favorite indicator (desktop only - the action button is always visible on touch) */}
         {channel.isFavorite && !isHovered && (
-          <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500 flex-shrink-0" />
+          <Star className="hidden lg:block h-3.5 w-3.5 fill-yellow-500 text-yellow-500 flex-shrink-0" />
         )}
       </div>
       {contextMenu && (

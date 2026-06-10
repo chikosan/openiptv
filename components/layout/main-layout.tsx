@@ -12,9 +12,9 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const isTVMode = useTVMode();
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="h-dvh flex flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
         <div className="container flex h-14 items-center px-4 justify-between">
           {/* Left: Logo */}
           <div className="flex items-center gap-2 font-bold">
@@ -25,7 +25,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
           {/* Right: Config */}
           <button
             onClick={() => setSettingsOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 hover:bg-accent rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-2 min-h-[44px] hover:bg-accent active:bg-accent active:scale-[0.97] rounded-lg transition-colors"
             title="Configuration"
           >
             <Settings className="h-5 w-5" />
@@ -35,11 +35,11 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 min-h-0 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">{children}</main>
 
       {/* Footer */}
       {!isTVMode && (
-        <footer className="border-t py-4">
+        <footer className="hidden lg:block border-t py-4">
           <div className="container px-4 text-center text-sm text-muted-foreground">
             <p>OpenIPTV - Stream IPTV Channels Anywhere</p>
           </div>
