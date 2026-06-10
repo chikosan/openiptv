@@ -28,6 +28,9 @@ yarn-error.log*
 .env*.local
 .env
 
+# release artifacts (APKs built locally)
+/dist
+
 # vercel
 .vercel
 
