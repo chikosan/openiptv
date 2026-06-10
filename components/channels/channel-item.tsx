@@ -9,7 +9,8 @@ import { usePreferencesStore } from "@/lib/store/preferences-store";
 import { useRecordingCount } from "@/lib/store/recordings-store";
 import { ContextMenu } from "./context-menu";
 import { useTVMode } from "@/lib/hooks/use-tv-mode";
-import { cn } from "@/lib/utils";
+import { useLongPress } from "@/lib/hooks/use-long-press";
+import { cn, vibrate } from "@/lib/utils";
 import Image from "next/image";
 
 interface ChannelItemProps {
@@ -80,6 +81,9 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
     setContextMenu({ x: e.clientX, y: e.clientY });
   }, []);
 
+  // Touch long-press opens the same menu (renders as a bottom sheet on phones)
+  const longPress = useLongPress((point) => setContextMenu({ x: point.x, y: point.y }));
+
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
       setIsDragging(true);
@@ -97,6 +101,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
   const handleFavoriteClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      vibrate(10);
       toggleFavorite(channel.id);
     },
     [channel.id, toggleFavorite],
@@ -128,6 +133,10 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           onKeyDown={handleItemKeyDown}
           onKeyUp={handleItemKeyUp}
           onContextMenu={handleContextMenu}
+          onTouchStart={longPress.onTouchStart}
+          onTouchMove={longPress.onTouchMove}
+          onTouchEnd={longPress.onTouchEnd}
+          onTouchCancel={longPress.onTouchCancel}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           draggable
@@ -269,6 +278,10 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
         onKeyDown={handleItemKeyDown}
         onKeyUp={handleItemKeyUp}
         onContextMenu={handleContextMenu}
+        onTouchStart={longPress.onTouchStart}
+        onTouchMove={longPress.onTouchMove}
+        onTouchEnd={longPress.onTouchEnd}
+        onTouchCancel={longPress.onTouchCancel}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         draggable

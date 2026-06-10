@@ -325,7 +325,7 @@ export default function Home() {
         {/* Channel List Sidebar - fills remaining space on mobile, fixed column on desktop */}
         <div
           data-channel-list
-          className="w-full lg:w-80 xl:w-96 2xl:w-[26rem] flex-1 min-h-0 lg:flex-none lg:h-full border-t lg:border-t-0 lg:border-l pb-[env(safe-area-inset-bottom)] lg:pb-0"
+          className="w-full lg:w-80 xl:w-96 2xl:w-[26rem] flex-1 min-h-0 lg:flex-none lg:h-full border-t lg:border-t-0 lg:border-l"
         >
           <ErrorBoundary>
             <Suspense fallback={<ChannelListSkeleton count={8} viewMode={ui.viewMode} />}>

@@ -20,8 +20,10 @@ import { ChannelInfoOverlay } from "./channel-info-overlay";
 import { useWatchHistoryStore } from "@/lib/store/watch-history-store";
 import { usePreferencesStore } from "@/lib/store/preferences-store";
 import { useTVMode } from "@/lib/hooks/use-tv-mode";
+import { OrientationLockButton } from "./orientation-lock-button";
+import { useToast } from "@/components/ui/toast";
 import { Volume2, VolumeX } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, vibrate } from "@/lib/utils";
 
 interface VideoPlayerProps {
   channel: Channel;
@@ -49,6 +51,10 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
   const [controlsVisible, setControlsVisible] = useState(false);
   const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
   const controlsOverlayRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const lastTapRef = useRef(0);
+  const toast = useToast();
 
   // Stores
   const { addToHistory, updateWatchTime } = useWatchHistoryStore();
@@ -114,6 +120,86 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
   useEffect(() => {
     setShowChannelInfo(true);
   }, [channel.id]);
+
+  // Touch gestures: vertical swipe zaps channels; double-tap seeks (catchup)
+  // or toggles play/pause (center)
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    if (t) touchStartRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const start = touchStartRef.current;
+      touchStartRef.current = null;
+      if (!start) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      const dt = Date.now() - start.t;
+
+      // Vertical swipe: channel zapping
+      if (dt < 600 && Math.abs(dy) > 60 && Math.abs(dy) > Math.abs(dx) * 2) {
+        vibrate(10);
+        if (dy < 0) {
+          onNextChannel?.();
+        } else {
+          onPrevChannel?.();
+        }
+        return;
+      }
+
+      // Tap (no drag): double-tap detection
+      if (dt < 300 && Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+        const now = Date.now();
+        if (now - lastTapRef.current < 350) {
+          lastTapRef.current = 0;
+          const video = videoElementRef.current;
+          if (!video) return;
+          const width = rootRef.current?.clientWidth ?? window.innerWidth;
+          const zone = t.clientX < width / 3 ? "back" : t.clientX > (2 * width) / 3 ? "fwd" : "center";
+          if (zone === "center") {
+            if (video.paused) {
+              video.play().catch(() => {});
+            } else {
+              video.pause();
+            }
+            return;
+          }
+          // Seeking only makes sense for finite (catchup/recording) streams
+          if (isCatchupMode || (Number.isFinite(video.duration) && video.duration > 0)) {
+            video.currentTime = Math.max(0, video.currentTime + (zone === "fwd" ? 10 : -10));
+            vibrate(10);
+          } else {
+            toast.info("Live stream — seeking unavailable");
+          }
+        } else {
+          lastTapRef.current = now;
+        }
+      }
+    },
+    [onNextChannel, onPrevChannel, isCatchupMode, toast],
+  );
+
+  // Auto-fullscreen when a touch device rotates to landscape while playing
+  useEffect(() => {
+    if (typeof screen === "undefined" || !screen.orientation) return;
+    if (!window.matchMedia("(pointer: coarse)").matches) return;
+    const orientation = screen.orientation;
+
+    const onChange = () => {
+      const landscape = orientation.type.startsWith("landscape");
+      if (landscape && !document.fullscreenElement) {
+        rootRef.current?.requestFullscreen?.().catch(() => {});
+      } else if (!landscape && document.fullscreenElement === rootRef.current) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+
+    orientation.addEventListener("change", onChange);
+    return () => orientation.removeEventListener("change", onChange);
+  }, []);
 
   useEffect(() => {
     // Make sure Video.js player is only initialized once
@@ -419,7 +505,13 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
   }, [isTVMode, showVolumeChange, setVolume, revealControls]);
 
   return (
-    <div className="relative w-full h-full bg-black group" onPointerDown={revealControls}>
+    <div
+      ref={rootRef}
+      className="relative w-full h-full bg-black group"
+      onPointerDown={revealControls}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <div ref={videoRef} className="w-full h-full" />
 
       {/* Channel Info Overlay (Netflix-style) */}
@@ -457,6 +549,7 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
       >
         <RecordButton channel={channel} videoElement={videoElementRef.current} />
         <QualitySelector player={playerRef.current} />
+        <OrientationLockButton />
         <PipButton videoElement={videoElementRef.current} />
         <CastButton onCastStateChange={handleCastStateChange} />
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Search, Star, Grid3x3, List, Filter, FolderTree, ListTree, FolderPlus, Edit, Trash2 } from "lucide-react";
+import { Search, Star, Grid3x3, List, Filter, FolderTree, ListTree, FolderPlus, RefreshCw, X } from "lucide-react";
 import { usePlaylistStore } from "@/lib/store/playlist-store";
 import { useChannelManagementStore } from "@/lib/store/channel-management-store";
 import { useCustomFoldersStore } from "@/lib/store/custom-folders-store";
@@ -25,7 +25,11 @@ export function ChannelList() {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
-  const { searchChannels, getVisibleChannels, getFavoriteChannels, currentChannel } = usePlaylistStore();
+  const { searchChannels, getVisibleChannels, getFavoriteChannels, currentChannel, playlists, refreshPlaylist } =
+    usePlaylistStore();
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pullStartYRef = useRef<number | null>(null);
   const { getHiddenChannelIds } = useChannelManagementStore();
   const { folders, createFolder, renameFolder, deleteFolder, getFolders } = useCustomFoldersStore();
 
@@ -69,6 +73,37 @@ export function ChannelList() {
         break;
     }
   }, []);
+
+  // Pull-to-refresh: drag down from the top of the list to re-fetch playlists
+  const handlePullStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (listRef.current && listRef.current.scrollTop <= 0 && !isRefreshing) {
+        pullStartYRef.current = e.touches[0]?.clientY ?? null;
+      }
+    },
+    [isRefreshing],
+  );
+
+  const handlePullMove = useCallback((e: React.TouchEvent) => {
+    const startY = pullStartYRef.current;
+    if (startY === null || !listRef.current || listRef.current.scrollTop > 0) return;
+    const dy = (e.touches[0]?.clientY ?? startY) - startY;
+    setPullDistance(dy > 0 ? Math.min(dy * 0.5, 80) : 0);
+  }, []);
+
+  const handlePullEnd = useCallback(async () => {
+    const distance = pullDistance;
+    pullStartYRef.current = null;
+    setPullDistance(0);
+    if (distance < 60 || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled(playlists.map((p) => refreshPlaylist(p.id)));
+      setRefreshKey((prev) => prev + 1);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [pullDistance, isRefreshing, playlists, refreshPlaylist]);
 
   // Get hidden channel IDs once and memoize
   const hiddenChannelIds = useMemo(() => getHiddenChannelIds(), [getHiddenChannelIds]);
@@ -172,11 +207,24 @@ export function ChannelList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
+            id="channel-search"
+            name="channel-search"
+            inputMode="search"
+            enterKeyHint="search"
             placeholder="Search channels..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-md border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full pl-9 pr-10 py-2 rounded-md border bg-background text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-1 top-1/2 -translate-y-1/2 p-2 min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-full hover:bg-accent text-muted-foreground"
+              title="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -253,10 +301,29 @@ export function ChannelList() {
         )}
       </div>
 
+      {/* Pull-to-refresh indicator */}
+      {(pullDistance > 0 || isRefreshing) && (
+        <div
+          className="flex items-center justify-center text-muted-foreground overflow-hidden transition-[height]"
+          style={{ height: isRefreshing ? 40 : pullDistance }}
+        >
+          <RefreshCw
+            className={cn(
+              "h-5 w-5",
+              isRefreshing && "animate-spin",
+              !isRefreshing && pullDistance >= 60 && "text-primary",
+            )}
+          />
+        </div>
+      )}
+
       {/* Channel List - Independent scrolling */}
       <div
         ref={listRef}
         onKeyDown={handleListKeyDown}
+        onTouchStart={handlePullStart}
+        onTouchMove={handlePullMove}
+        onTouchEnd={handlePullEnd}
         className="flex-1 overflow-y-auto overflow-x-hidden p-2 scroll-smooth min-h-0"
       >
         {channels.length === 0 ? (

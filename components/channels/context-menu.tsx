@@ -6,6 +6,7 @@ import { Channel } from "@/lib/types";
 import { useCustomFoldersStore } from "@/lib/store/custom-folders-store";
 import { useChannelManagementStore } from "@/lib/store/channel-management-store";
 import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
+import { cn } from "@/lib/utils";
 
 interface ContextMenuProps {
   channel: Channel;
@@ -62,13 +63,22 @@ export function ContextMenu({ channel, x, y, onClose, onRename }: ContextMenuPro
     onClose();
   };
 
+  // Phones get a thumb-friendly bottom sheet; pointer devices get a menu at the cursor
+  const isSheet = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
+
   return (
     <div
       ref={trapRef}
-      className="fixed z-50 min-w-48 bg-popover border rounded-lg shadow-lg py-1"
-      style={{ left: x, top: y }}
+      className={cn(
+        "fixed z-50 bg-popover border shadow-lg py-1",
+        isSheet
+          ? "left-0 right-0 bottom-0 rounded-t-2xl pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 animate-fade-in-up [&>button]:py-3 [&>div>button]:py-3"
+          : "min-w-48 rounded-lg",
+      )}
+      style={isSheet ? undefined : { left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
     >
+      {isSheet && <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-muted-foreground/40" />}
       {/* Rename */}
       <button
         onClick={handleRename}
