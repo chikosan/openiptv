@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Settings } from "lucide-react";
 import videojs from "video.js";
+import { usePreferencesStore } from "@/lib/store/preferences-store";
 import { cn } from "@/lib/utils";
 
 type QualityLevel = { height: number; enabled: boolean };
@@ -15,10 +16,18 @@ interface QualitySelectorProps {
   className?: string;
 }
 
+// Map a concrete pixel height onto the persisted quality preference buckets
+function heightToPreference(height: number): "high" | "medium" | "low" {
+  if (height >= 720) return "high";
+  if (height >= 480) return "medium";
+  return "low";
+}
+
 export function QualitySelector({ player, className }: QualitySelectorProps) {
   const [qualities, setQualities] = useState<string[]>([]);
   const [currentQuality, setCurrentQuality] = useState<string>("auto");
   const [showMenu, setShowMenu] = useState(false);
+  const { setPreferredQuality } = usePreferencesStore();
 
   useEffect(() => {
     if (!player) return;
@@ -39,14 +48,42 @@ export function QualitySelector({ player, className }: QualitySelectorProps) {
       }
     };
 
+    // Re-apply the persisted quality preference once levels are known
+    const applyPreference = () => {
+      const pref = usePreferencesStore.getState().player.preferredQuality;
+      if (pref === "auto") return;
+      try {
+        const levels = player.qualityLevels?.();
+        if (!levels || levels.length === 0) return;
+        const heights = [];
+        for (let i = 0; i < levels.length; i++) heights.push(levels[i].height);
+        const sorted = [...heights].sort((a, b) => b - a);
+        const target =
+          pref === "high"
+            ? sorted[0]
+            : pref === "low"
+              ? sorted[sorted.length - 1]
+              : sorted[Math.floor(sorted.length / 2)];
+        for (let i = 0; i < levels.length; i++) {
+          levels[i].enabled = levels[i].height === target;
+        }
+        setCurrentQuality(`${target}p`);
+      } catch {
+        // levels not ready yet
+      }
+    };
+
     player.ready(() => {
       updateQualities();
+      applyPreference();
     });
 
     player.on("loadedmetadata", updateQualities);
+    player.on("loadedmetadata", applyPreference);
 
     return () => {
       player.off("loadedmetadata", updateQualities);
+      player.off("loadedmetadata", applyPreference);
     };
   }, [player]);
 
@@ -67,6 +104,7 @@ export function QualitySelector({ player, className }: QualitySelectorProps) {
       }
 
       setCurrentQuality(quality);
+      setPreferredQuality(quality === "auto" ? "auto" : heightToPreference(parseInt(quality)));
       setShowMenu(false);
     } catch (error) {
       console.error("Quality change error:", error);

@@ -297,3 +297,9 @@ html.tv-mode {
 .tv-mode [tabindex="0"]:focus {
   outline-width: 4px;
 }
+
+/* Subtitles readable from couch distance */
+.tv-mode video::cue {
+  font-size: 1.4em;
+  background: rgba(0, 0, 0, 0.7);
+}

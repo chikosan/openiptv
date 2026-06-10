@@ -21,8 +21,11 @@ import { useWatchHistoryStore } from "@/lib/store/watch-history-store";
 import { usePreferencesStore } from "@/lib/store/preferences-store";
 import { useTVMode } from "@/lib/hooks/use-tv-mode";
 import { OrientationLockButton } from "./orientation-lock-button";
+import { TrackSelector } from "./track-selector";
+import { StreamInfoOverlay } from "./stream-info-overlay";
 import { useToast } from "@/components/ui/toast";
-import { Volume2, VolumeX } from "lucide-react";
+import { acquireWakeLock, releaseWakeLock } from "@/lib/wake-lock";
+import { Volume2, VolumeX, Activity } from "lucide-react";
 import { cn, vibrate } from "@/lib/utils";
 
 interface VideoPlayerProps {
@@ -41,6 +44,7 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
   const watchIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const [error, setError] = useState<string>("");
+  const [playerReady, setPlayerReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCasting, setIsCasting] = useState(false);
   const [qualityLevels, setQualityLevels] = useState<Level[]>([]);
@@ -55,6 +59,11 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
   const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
   const lastTapRef = useRef(0);
   const toast = useToast();
+  const [hlsInstance, setHlsInstance] = useState<Hls | null>(null);
+  const [showStats, setShowStats] = useState(false);
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [bufferingSeconds, setBufferingSeconds] = useState(0);
+  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Stores
   const { addToHistory, updateWatchTime } = useWatchHistoryStore();
@@ -221,6 +230,7 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         () => {
           console.log("Video.js player initialized with hls.js support");
           videoElementRef.current = player.el().querySelector("video");
+          setPlayerReady(true);
         },
       ));
 
@@ -246,19 +256,43 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
 
       player.on("playing", () => {
         setIsLoading(false);
+        acquireWakeLock();
       });
 
       player.on("waiting", () => {
         setIsLoading(true);
       });
+
+      player.on("pause", () => {
+        releaseWakeLock();
+      });
     }
   }, []);
+
+  // Release the wake lock when leaving the player entirely
+  useEffect(() => {
+    return () => {
+      releaseWakeLock();
+    };
+  }, []);
+
+  // Count how long we've been buffering (shown after a couple of seconds)
+  useEffect(() => {
+    if (!isLoading) {
+      setBufferingSeconds(0);
+      return;
+    }
+    const interval = setInterval(() => setBufferingSeconds((s) => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, [isLoading]);
 
   useEffect(() => {
     const player = playerRef.current;
     const videoElement = videoElementRef.current;
 
-    if (!player || !videoElement || !channel) return;
+    // playerReady guards a race: Video.js sets videoElementRef asynchronously,
+    // and without it the first channel never attaches a source
+    if (!playerReady || !player || !videoElement || !channel) return;
 
     setError("");
     setIsLoading(true);
@@ -311,9 +345,17 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         abrBandWidthUpFactor: 0.7,
         // Progressive loading for better experience on slow connections
         progressive: true,
+        // Faster zapping: prefetch the first fragment while parsing the manifest,
+        // and don't fetch quality levels larger than the player surface
+        startFragPrefetch: true,
+        capLevelToPlayerSize: true,
       });
 
       hlsRef.current = hls;
+      setHlsInstance(hls);
+      setReconnectAttempt(0);
+      let networkRetries = 0;
+      let mediaRetries = 0;
 
       // Event handlers
       hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
@@ -337,20 +379,46 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         console.log("Quality level switched to: " + data.level);
       });
 
+      // Reset retry counters once data flows again
+      hls.on(Hls.Events.FRAG_LOADED, () => {
+        if (networkRetries > 0 || mediaRetries > 0) {
+          networkRetries = 0;
+          mediaRetries = 0;
+          setReconnectAttempt(0);
+        }
+      });
+
       hls.on(Hls.Events.ERROR, (event, data) => {
         console.error("HLS.js error:", data);
 
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error("Fatal network error, trying to recover...");
-              setError("Network error. Retrying...");
-              hls.startLoad();
+              // Exponential backoff: 1s, 2s, 4s — then surface a manual Retry
+              if (networkRetries < 3) {
+                const delay = 1000 * Math.pow(2, networkRetries);
+                networkRetries += 1;
+                setReconnectAttempt(networkRetries);
+                setError("");
+                if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+                retryTimerRef.current = setTimeout(() => {
+                  if (hlsRef.current === hls) hls.startLoad();
+                }, delay);
+              } else {
+                setReconnectAttempt(0);
+                setError("Network error — stream unreachable");
+                setIsLoading(false);
+              }
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.error("Fatal media error, trying to recover...");
-              setError("Media error. Attempting recovery...");
-              hls.recoverMediaError();
+              if (mediaRetries < 2) {
+                mediaRetries += 1;
+                setError("");
+                hls.recoverMediaError();
+              } else {
+                setError(`Playback failed: ${data.details}`);
+                setIsLoading(false);
+              }
               break;
             default:
               console.error("Fatal error, cannot recover");
@@ -393,12 +461,18 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
 
     // Cleanup function
     return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
+      setHlsInstance(null);
+      setReconnectAttempt(0);
     };
-  }, [channel, currentStreamUrl, isCasting]);
+  }, [channel, currentStreamUrl, isCasting, playerReady]);
 
   const handleCastStateChange = (isConnected: boolean) => {
     setIsCasting(isConnected);
@@ -549,9 +623,20 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
       >
         <RecordButton channel={channel} videoElement={videoElementRef.current} />
         <QualitySelector player={playerRef.current} />
+        <TrackSelector hls={hlsInstance} />
         <OrientationLockButton />
         <PipButton videoElement={videoElementRef.current} />
         <CastButton onCastStateChange={handleCastStateChange} />
+        <button
+          onClick={() => setShowStats((s) => !s)}
+          className={cn(
+            "p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full transition-all hover:bg-accent",
+            showStats && "bg-accent",
+          )}
+          title="Stream statistics"
+        >
+          <Activity className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Cast Overlay */}
@@ -559,12 +644,25 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         <CastOverlay channel={channel} deviceName={chromecastManager.getCurrentDevice()?.friendlyName || "TV"} />
       )}
 
-      {/* Loading Overlay */}
-      {isLoading && !error && !isCasting && !needsUserInteraction && (
+      {/* Stream statistics */}
+      <StreamInfoOverlay
+        hls={hlsInstance}
+        videoElement={videoElementRef.current}
+        isVisible={showStats}
+        onClose={() => setShowStats(false)}
+      />
+
+      {/* Loading / Reconnecting Overlay */}
+      {(isLoading || reconnectAttempt > 0) && !error && !isCasting && !needsUserInteraction && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="text-center">
             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent mb-2" />
-            <p className="text-sm text-white">Loading stream...</p>
+            <p className="text-sm text-white">
+              {reconnectAttempt > 0 ? `Reconnecting… (attempt ${reconnectAttempt}/3)` : "Loading stream..."}
+            </p>
+            {bufferingSeconds > 2 && reconnectAttempt === 0 && (
+              <p className="text-xs text-white/60 mt-1">buffering for {bufferingSeconds}s</p>
+            )}
           </div>
         </div>
       )}
