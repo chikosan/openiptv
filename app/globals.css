@@ -118,7 +118,8 @@ html {
 }
 
 /* Full height containers */
-html, body {
+html,
+body {
   height: 100%;
   overflow: hidden;
 }
@@ -253,4 +254,26 @@ html, body {
 /* Hide Video.js elements we're replacing */
 .video-js .vjs-picture-in-picture-control {
   display: none;
+}
+
+/* ── TV Mode (D-pad / remote navigation) ─────────────────────── */
+.tv-mode *:focus {
+  outline: none;
+}
+
+.tv-mode *:focus-visible,
+.tv-mode [tabindex="0"]:focus {
+  outline: 3px solid hsl(var(--primary));
+  outline-offset: 3px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 6px hsl(var(--primary) / 0.25);
+}
+
+.tv-mode [role="button"]:focus .tv-focus-reveal,
+.tv-mode [tabindex="0"]:focus .tv-focus-reveal {
+  opacity: 1 !important;
+}
+
+.tv-mode [role="button"] {
+  min-height: 3rem;
 }
