@@ -146,7 +146,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
           className={cn(
-            "relative group p-3 rounded-xl border transition-all duration-300 cursor-pointer",
+            "cv-auto-card relative group p-3 rounded-xl border transition-all duration-300 cursor-pointer",
             "hover:border-primary hover:shadow-xl hover:shadow-primary/20 hover:scale-105 hover:-translate-y-1",
             "active:scale-[0.98]",
             isActive
@@ -173,6 +173,9 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
                 fill
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                 className={cn("object-contain p-2 transition-transform duration-300", isHovered && "scale-110")}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
               />
             ) : (
               <Play
@@ -291,7 +294,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         className={cn(
-          "w-full group flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 cursor-pointer relative",
+          "cv-auto w-full group flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 cursor-pointer relative",
           "hover:bg-gradient-to-r hover:from-primary/20 hover:to-transparent hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10",
           "active:scale-[0.99] active:bg-primary/10",
           isActive && "bg-gradient-to-r from-primary/30 to-primary/10 border-l-4 border-primary",
@@ -321,7 +324,16 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           )}
         >
           {channel.logo ? (
-            <Image src={channel.logo} alt={channel.name} fill sizes="56px" className="object-contain p-1" />
+            <Image
+              src={channel.logo}
+              alt={channel.name}
+              fill
+              sizes="56px"
+              className="object-contain p-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
           ) : (
             <Play className="h-4 w-4 text-muted-foreground" />
           )}

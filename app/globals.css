@@ -303,3 +303,15 @@ html.tv-mode {
   font-size: 1.4em;
   background: rgba(0, 0, 0, 0.7);
 }
+
+/* Off-screen rows skip layout/paint entirely - keeps 10k-channel lists smooth
+   without JS virtualization (focusable elements stay in the DOM for D-pad nav) */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
+}
+
+.cv-auto-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
+}

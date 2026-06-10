@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, useDeferredValue } from "react";
 import { Search, Star, Grid3x3, List, Filter, FolderTree, ListTree, FolderPlus, RefreshCw, X } from "lucide-react";
 import { usePlaylistStore } from "@/lib/store/playlist-store";
 import { useChannelManagementStore } from "@/lib/store/channel-management-store";
@@ -31,6 +31,8 @@ export function ChannelList() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const pullStartYRef = useRef<number | null>(null);
+  // Keep typing snappy on huge playlists: filter with the deferred value
+  const deferredQuery = useDeferredValue(searchQuery);
   const { getHiddenChannelIds } = useChannelManagementStore();
   const { folders, createFolder, renameFolder, deleteFolder, getFolders } = useCustomFoldersStore();
 
@@ -130,8 +132,8 @@ export function ChannelList() {
     let allChannels = [];
     if (filterMode === "favorites") {
       allChannels = getFavoriteChannels();
-    } else if (searchQuery.trim()) {
-      allChannels = searchChannels(searchQuery);
+    } else if (deferredQuery.trim()) {
+      allChannels = searchChannels(deferredQuery);
     } else {
       allChannels = getVisibleChannels();
     }
@@ -144,7 +146,7 @@ export function ChannelList() {
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    searchQuery,
+    deferredQuery,
     filterMode,
     selectedGroup,
     searchChannels,
@@ -171,14 +173,14 @@ export function ChannelList() {
 
   // Group channels by country if organize mode is "country"
   const organizedChannels = useMemo(() => {
-    if (organizeMode === "flat" || searchQuery.trim()) {
+    if (organizeMode === "flat" || deferredQuery.trim()) {
       return { type: "flat" as const, channels };
     }
 
     const grouped = groupChannelsByCountry(channels);
     const sorted = sortCountries(grouped, ["IL", "US", "UK"]); // IL first!
     return { type: "country" as const, groups: sorted };
-  }, [channels, organizeMode, searchQuery]);
+  }, [channels, organizeMode, deferredQuery]);
 
   return (
     <div className="flex flex-col h-full bg-card">

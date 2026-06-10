@@ -2,11 +2,13 @@
 
 import { Tv, Search, Settings, CalendarDays } from "lucide-react";
 import { useState, lazy, Suspense } from "react";
-import { SettingsModal } from "@/components/settings/settings-modal";
 import { useTVMode } from "@/lib/hooks/use-tv-mode";
 import { useAndroidBackButton } from "@/lib/hooks/use-back-button";
 
 const EPGGrid = lazy(() => import("@/components/epg/epg-grid").then((m) => ({ default: m.EPGGrid })));
+const SettingsModal = lazy(() =>
+  import("@/components/settings/settings-modal").then((m) => ({ default: m.SettingsModal })),
+);
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -112,7 +114,11 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Settings Modal */}
-      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {settingsOpen && (
+        <Suspense fallback={null}>
+          <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        </Suspense>
+      )}
 
       {/* TV Guide */}
       {guideOpen && (

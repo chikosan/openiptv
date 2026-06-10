@@ -297,11 +297,13 @@ export default function Home() {
 
               {/* EPG Info or Catchup Panel */}
               {showCatchup ? (
-                <CatchupPanel
-                  channel={currentChannel}
-                  onPlayProgram={handlePlayCatchup}
-                  onClose={() => setShowCatchup(false)}
-                />
+                <ErrorBoundary>
+                  <CatchupPanel
+                    channel={currentChannel}
+                    onPlayProgram={handlePlayCatchup}
+                    onClose={() => setShowCatchup(false)}
+                  />
+                </ErrorBoundary>
               ) : (
                 <Suspense
                   fallback={
@@ -313,12 +315,14 @@ export default function Home() {
                     </div>
                   }
                 >
-                  <ProgramInfo
-                    channel={currentChannel}
-                    compact
-                    onWatchFromStart={handlePlayCatchup}
-                    onShowCatchup={() => setShowCatchup(true)}
-                  />
+                  <ErrorBoundary>
+                    <ProgramInfo
+                      channel={currentChannel}
+                      compact
+                      onWatchFromStart={handlePlayCatchup}
+                      onShowCatchup={() => setShowCatchup(true)}
+                    />
+                  </ErrorBoundary>
                 </Suspense>
               )}
             </div>
