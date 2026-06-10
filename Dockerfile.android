@@ -1,0 +1,36 @@
+# Android build environment for OpenIPTV
+# JDK 21 + Android SDK 36 — no Java installation needed on your Mac
+#
+# Build the image once: docker build -t openiptv-android-builder -f Dockerfile.android .
+# Then use build-apk.sh for all subsequent builds
+
+FROM eclipse-temurin:21-jdk-jammy
+
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends wget unzip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Android SDK command-line tools v12 (supports API 36)
+# Update CMDLINE_TOOLS_VERSION if sdkmanager reports "package not found":
+# Check latest at: https://developer.android.com/studio#command-tools
+ARG CMDLINE_TOOLS_VERSION=12266719
+RUN mkdir -p "$ANDROID_HOME/cmdline-tools" && \
+    wget -q \
+      "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip" \
+      -O /tmp/cmdline-tools.zip && \
+    unzip -q /tmp/cmdline-tools.zip -d /tmp && \
+    mv /tmp/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest" && \
+    rm /tmp/cmdline-tools.zip
+
+# Accept licenses, install platform + build-tools for API 36
+RUN yes | sdkmanager --licenses > /dev/null && \
+    sdkmanager \
+        "platform-tools" \
+        "platforms;android-36" \
+        "build-tools;35.0.0" \
+        "build-tools;36.0.0"
+
+WORKDIR /workspace
