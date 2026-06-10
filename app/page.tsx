@@ -14,6 +14,7 @@ import { useTVMode } from "@/lib/hooks/use-tv-mode";
 import { useRecordingsStore } from "@/lib/store/recordings-store";
 import { VideoPlayerSkeleton, ChannelListSkeleton } from "@/components/ui/skeleton";
 import { CatchupPanel } from "@/components/epg/catchup-panel";
+import { ChannelNumberOverlay } from "@/components/player/channel-number-overlay";
 import { catchupManager } from "@/lib/catchup/catchup-manager";
 import { EPGProgram } from "@/lib/epg/types";
 
@@ -31,6 +32,7 @@ export default function Home() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showCatchup, setShowCatchup] = useState(false);
   const [catchupUrl, setCatchupUrl] = useState<string | null>(null);
+  const [numberBuffer, setNumberBuffer] = useState("");
 
   useEffect(() => {
     initialize();
@@ -63,14 +65,21 @@ export default function Home() {
     }
   }, [currentChannel, setLastChannel]);
 
-  // Auto-focus channel list in TV mode
+  // Auto-focus channel list in TV mode - retry until the lazy-loaded list renders
   useEffect(() => {
     if (!isTVMode || !isInitialized || playlists.length === 0) return;
-    const timer = setTimeout(() => {
+    let attempts = 0;
+    const timer = setInterval(() => {
       const firstItem = document.querySelector<HTMLElement>('[data-channel-list] [tabindex="0"]');
-      firstItem?.focus();
-    }, 800);
-    return () => clearTimeout(timer);
+      attempts += 1;
+      if (firstItem) {
+        firstItem.focus();
+        clearInterval(timer);
+      } else if (attempts >= 20) {
+        clearInterval(timer);
+      }
+    }, 200);
+    return () => clearInterval(timer);
   }, [isTVMode, isInitialized, playlists.length]);
 
   // Load EPG data when channels are available
@@ -108,6 +117,45 @@ export default function Home() {
     },
     [currentChannel, getVisibleChannels, setCurrentChannel],
   );
+
+  // TV zapping: ChannelUp/Down + PageUp/Down switch channels from anywhere
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select")) return;
+      switch (e.key) {
+        case "ChannelUp":
+        case "PageUp":
+          e.preventDefault();
+          navigateChannel("next");
+          return;
+        case "ChannelDown":
+        case "PageDown":
+          e.preventDefault();
+          navigateChannel("prev");
+          return;
+      }
+      if (/^[0-9]$/.test(e.key)) {
+        setNumberBuffer((prev) => (prev + e.key).slice(0, 4));
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navigateChannel]);
+
+  // Number-key channel entry: jump after 1.5s (matches tvgChno, then order, then list index)
+  useEffect(() => {
+    if (!numberBuffer) return;
+    const timer = setTimeout(() => {
+      const channels = getVisibleChannels();
+      const num = parseInt(numberBuffer, 10);
+      const target =
+        channels.find((c) => c.tvgChno === num) ?? channels.find((c) => c.order === num) ?? channels[num - 1];
+      if (target) setCurrentChannel(target);
+      setNumberBuffer("");
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [numberBuffer, getVisibleChannels, setCurrentChannel]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -289,6 +337,9 @@ export default function Home() {
 
       {/* Keyboard Shortcuts Modal */}
       <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+
+      {/* Channel number entry overlay (remote digit keys) */}
+      <ChannelNumberOverlay value={numberBuffer} />
     </MainLayout>
   );
 }

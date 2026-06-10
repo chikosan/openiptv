@@ -1,55 +1,48 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Folder, Edit, Trash2, Move, FolderPlus } from "lucide-react"
-import { Channel } from "@/lib/types"
-import { useCustomFoldersStore } from "@/lib/store/custom-folders-store"
-import { useChannelManagementStore } from "@/lib/store/channel-management-store"
+import { useEffect, useState } from "react";
+import { Folder, Edit, Trash2, Move, FolderPlus } from "lucide-react";
+import { Channel } from "@/lib/types";
+import { useCustomFoldersStore } from "@/lib/store/custom-folders-store";
+import { useChannelManagementStore } from "@/lib/store/channel-management-store";
+import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
 
 interface ContextMenuProps {
-  channel: Channel
-  x: number
-  y: number
-  onClose: () => void
-  onRename?: () => void
+  channel: Channel;
+  x: number;
+  y: number;
+  onClose: () => void;
+  onRename?: () => void;
 }
 
 export function ContextMenu({ channel, x, y, onClose, onRename }: ContextMenuProps) {
-  const { folders, moveChannelToFolder, getChannelFolder } = useCustomFoldersStore()
-  const { deleteChannel } = useChannelManagementStore()
-  const [showFolderSubmenu, setShowFolderSubmenu] = useState(false)
+  const { folders, moveChannelToFolder, getChannelFolder } = useCustomFoldersStore();
+  const { deleteChannel } = useChannelManagementStore();
+  const [showFolderSubmenu, setShowFolderSubmenu] = useState(false);
 
-  const currentFolder = getChannelFolder(channel.id)
+  const currentFolder = getChannelFolder(channel.id);
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
 
   useEffect(() => {
-    const handleClickOutside = () => onClose()
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-
-    document.addEventListener("click", handleClickOutside)
-    document.addEventListener("keydown", handleEscape)
-
-    return () => {
-      document.removeEventListener("click", handleClickOutside)
-      document.removeEventListener("keydown", handleEscape)
-    }
-  }, [onClose])
+    const handleClickOutside = () => onClose();
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [onClose]);
 
   const handleMoveToFolder = (folderId: string) => {
-    moveChannelToFolder(channel.id, currentFolder?.id || null, folderId)
-    onClose()
-    window.dispatchEvent(new CustomEvent('channelDeleted')) // Trigger refresh
-  }
+    moveChannelToFolder(channel.id, currentFolder?.id || null, folderId);
+    onClose();
+    window.dispatchEvent(new CustomEvent("channelDeleted")); // Trigger refresh
+  };
 
   const handleRemoveFromFolder = () => {
     if (currentFolder) {
-      const { removeChannelFromFolder } = useCustomFoldersStore.getState()
-      removeChannelFromFolder(currentFolder.id, channel.id)
-      onClose()
-      window.dispatchEvent(new CustomEvent('channelDeleted'))
+      const { removeChannelFromFolder } = useCustomFoldersStore.getState();
+      removeChannelFromFolder(currentFolder.id, channel.id);
+      onClose();
+      window.dispatchEvent(new CustomEvent("channelDeleted"));
     }
-  }
+  };
 
   const handleDelete = () => {
     if (confirm(`Delete "${channel.name}"?\n\nYou can restore it from Settings → Channels → Trash`)) {
@@ -59,18 +52,19 @@ export function ContextMenu({ channel, x, y, onClose, onRename }: ContextMenuPro
         url: channel.url,
         logo: channel.logo,
         group: channel.group,
-      })
-      onClose()
+      });
+      onClose();
     }
-  }
+  };
 
   const handleRename = () => {
-    onRename?.()
-    onClose()
-  }
+    onRename?.();
+    onClose();
+  };
 
   return (
     <div
+      ref={trapRef}
       className="fixed z-50 min-w-48 bg-popover border rounded-lg shadow-lg py-1"
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
@@ -138,5 +132,5 @@ export function ContextMenu({ channel, x, y, onClose, onRename }: ContextMenuPro
         Delete
       </button>
     </div>
-  )
+  );
 }

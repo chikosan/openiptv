@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, memo, useCallback } from "react";
+import { useState, memo, useCallback, useRef } from "react";
 import { Star, Play, Trash2, Radio, History, Video } from "lucide-react";
 import { Channel } from "@/lib/types";
 import { usePlaylistStore } from "@/lib/store/playlist-store";
@@ -8,6 +8,7 @@ import { useChannelManagementStore } from "@/lib/store/channel-management-store"
 import { usePreferencesStore } from "@/lib/store/preferences-store";
 import { useRecordingCount } from "@/lib/store/recordings-store";
 import { ContextMenu } from "./context-menu";
+import { useTVMode } from "@/lib/hooks/use-tv-mode";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 
@@ -29,11 +30,49 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
+  const isTVMode = useTVMode();
+  const enterTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressFiredRef = useRef(false);
+
   const handleClick = useCallback(() => {
     if (!isRenaming) {
       setCurrentChannel(channel);
     }
   }, [isRenaming, channel, setCurrentChannel]);
+
+  // TV remote: short OK press selects, holding OK ~600ms opens the context menu
+  const handleItemKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      if (!isTVMode) {
+        handleClick();
+        return;
+      }
+      e.preventDefault();
+      if (e.repeat) return;
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      longPressFiredRef.current = false;
+      enterTimerRef.current = setTimeout(() => {
+        longPressFiredRef.current = true;
+        setContextMenu({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+      }, 600);
+    },
+    [isTVMode, handleClick],
+  );
+
+  const handleItemKeyUp = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key !== "Enter" || !isTVMode) return;
+      if (enterTimerRef.current) {
+        clearTimeout(enterTimerRef.current);
+        enterTimerRef.current = null;
+      }
+      if (!longPressFiredRef.current) {
+        handleClick();
+      }
+    },
+    [isTVMode, handleClick],
+  );
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -86,7 +125,8 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           role="button"
           tabIndex={0}
           onClick={handleClick}
-          onKeyDown={(e) => e.key === "Enter" && handleClick()}
+          onKeyDown={handleItemKeyDown}
+          onKeyUp={handleItemKeyUp}
           onContextMenu={handleContextMenu}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
@@ -226,7 +266,8 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
         role="button"
         tabIndex={0}
         onClick={handleClick}
-        onKeyDown={(e) => e.key === "Enter" && handleClick()}
+        onKeyDown={handleItemKeyDown}
+        onKeyUp={handleItemKeyUp}
         onContextMenu={handleContextMenu}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}

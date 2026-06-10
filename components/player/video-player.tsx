@@ -21,6 +21,7 @@ import { useWatchHistoryStore } from "@/lib/store/watch-history-store";
 import { usePreferencesStore } from "@/lib/store/preferences-store";
 import { useTVMode } from "@/lib/hooks/use-tv-mode";
 import { Volume2, VolumeX } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface VideoPlayerProps {
   channel: Channel;
@@ -45,6 +46,9 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
   const [showChannelInfo, setShowChannelInfo] = useState(true);
   const [showVolumeIndicator, setShowVolumeIndicator] = useState(false);
   const [currentVolume, setCurrentVolume] = useState(1);
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const controlsTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const controlsOverlayRef = useRef<HTMLDivElement>(null);
 
   // Stores
   const { addToHistory, updateWatchTime } = useWatchHistoryStore();
@@ -92,6 +96,24 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
     setShowVolumeIndicator(true);
     setTimeout(() => setShowVolumeIndicator(false), 1500);
   }, []);
+
+  // Reveal player controls (tap/keypress) and auto-hide after 4s of inactivity
+  const revealControls = useCallback(() => {
+    setControlsVisible(true);
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 4000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+    };
+  }, []);
+
+  // Show the channel banner on every channel change (TV zapping feedback)
+  useEffect(() => {
+    setShowChannelInfo(true);
+  }, [channel.id]);
 
   useEffect(() => {
     // Make sure Video.js player is only initialized once
@@ -329,13 +351,37 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
     };
   }, []);
 
-  // D-pad volume and play/pause for Android TV / TV mode
+  // D-pad navigation for Android TV / TV mode:
+  // - roving Left/Right focus across the player control buttons
+  // - volume Up/Down and Enter play/pause only when no interactive element has focus
   useEffect(() => {
     if (!isTVMode) return;
 
     const handleTVKeyDown = (e: KeyboardEvent) => {
       const video = videoElementRef.current;
       if (!video) return;
+
+      // When a player control button is focused: Left/Right roam, Down returns to list
+      const overlay = controlsOverlayRef.current;
+      const controls = overlay ? Array.from(overlay.querySelectorAll<HTMLElement>("button")) : [];
+      const focusedIdx = controls.indexOf(document.activeElement as HTMLElement);
+      if (focusedIdx >= 0) {
+        revealControls();
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          const next =
+            e.key === "ArrowRight" ? Math.min(controls.length - 1, focusedIdx + 1) : Math.max(0, focusedIdx - 1);
+          controls[next]?.focus();
+        } else if (e.key === "ArrowDown") {
+          e.preventDefault();
+          document.querySelector<HTMLElement>('[data-channel-list] [tabindex="0"]')?.focus();
+        }
+        return; // Enter activates the focused control natively
+      }
+
+      // Don't steal keys from the channel list, inputs, or other buttons
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, button, [role="button"], [data-channel-list]')) return;
 
       switch (e.key) {
         case "ArrowUp":
@@ -350,6 +396,13 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
           showVolumeChange(video.volume);
           setVolume(video.volume);
           break;
+        case "ArrowLeft":
+        case "ArrowRight":
+          // Enter the player controls from the video surface
+          e.preventDefault();
+          revealControls();
+          controls[0]?.focus();
+          break;
         case "Enter":
           e.preventDefault();
           if (video.paused) {
@@ -363,10 +416,10 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
 
     window.addEventListener("keydown", handleTVKeyDown);
     return () => window.removeEventListener("keydown", handleTVKeyDown);
-  }, [isTVMode, showVolumeChange, setVolume]);
+  }, [isTVMode, showVolumeChange, setVolume, revealControls]);
 
   return (
-    <div className="relative w-full h-full bg-black group">
+    <div className="relative w-full h-full bg-black group" onPointerDown={revealControls}>
       <div ref={videoRef} className="w-full h-full" />
 
       {/* Channel Info Overlay (Netflix-style) */}
@@ -394,8 +447,14 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         </div>
       )}
 
-      {/* Player Controls Overlay */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Player Controls Overlay - revealed by hover, tap, focus, or TV d-pad */}
+      <div
+        ref={controlsOverlayRef}
+        className={cn(
+          "absolute top-4 right-4 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full p-1 transition-opacity",
+          controlsVisible ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+        )}
+      >
         <RecordButton channel={channel} videoElement={videoElementRef.current} />
         <QualitySelector player={playerRef.current} />
         <PipButton videoElement={videoElementRef.current} />

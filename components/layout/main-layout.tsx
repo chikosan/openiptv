@@ -5,11 +5,21 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { SettingsModal } from "@/components/settings/settings-modal";
 import { useTVMode } from "@/lib/hooks/use-tv-mode";
+import { useAndroidBackButton } from "@/lib/hooks/use-back-button";
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const isTVMode = useTVMode();
+
+  // Android hardware/remote Back: close settings first, then default chain
+  useAndroidBackButton(() => {
+    if (settingsOpen) {
+      setSettingsOpen(false);
+      return true;
+    }
+    return false;
+  });
 
   return (
     <div className="h-dvh flex flex-col bg-background">

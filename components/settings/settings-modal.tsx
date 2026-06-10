@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   X,
   Download,
@@ -30,6 +30,7 @@ import { ParentalControls } from "./parental-controls";
 import { StatisticsPanel } from "./statistics-panel";
 import { BackupRestore } from "./backup-restore";
 import { cn } from "@/lib/utils";
+import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -50,16 +51,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     type: "success" | "error";
   } | null>(null);
 
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onClose]);
+  // Trap focus inside the dialog (Escape closes, focus restored to opener)
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
 
   const handleRefresh = async (playlistId: string) => {
     setRefreshingId(playlistId);
@@ -110,7 +103,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
       {/* Modal - full-screen sheet on phones, centered dialog on larger screens */}
       <div className="fixed inset-0 flex items-center justify-center z-50 p-0 sm:p-4">
-        <div className="bg-background border rounded-none sm:rounded-lg shadow-2xl w-full h-dvh sm:h-auto sm:max-w-2xl sm:max-h-[85vh] flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:pt-0 sm:pb-0">
+        <div
+          ref={trapRef}
+          className="bg-background border rounded-none sm:rounded-lg shadow-2xl w-full h-dvh sm:h-auto sm:max-w-2xl sm:max-h-[85vh] flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:pt-0 sm:pb-0"
+        >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b">
             <h2 className="text-2xl font-bold">Settings</h2>

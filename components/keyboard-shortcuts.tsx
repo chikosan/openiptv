@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { X, Keyboard } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
 
 interface KeyboardShortcutsProps {
   isOpen: boolean;
@@ -48,11 +49,14 @@ const shortcuts = [
 ];
 
 export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsProps) {
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={onClose}>
       <div
+        ref={trapRef}
         className="relative w-full max-w-2xl max-h-[85dvh] overflow-auto bg-card rounded-xl border shadow-2xl m-2 sm:m-4"
         onClick={(e) => e.stopPropagation()}
       >
