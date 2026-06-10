@@ -205,8 +205,8 @@ export default function Home() {
             </>
           )}
 
-          {/* Video Player */}
-          <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex-shrink-0">
+          {/* Video Player - stays pinned while scrolling info cards on mobile */}
+          <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex-shrink-0 sticky top-0 z-30 lg:static">
             {currentChannel ? (
               <ErrorBoundary>
                 <Suspense fallback={<VideoPlayerSkeleton />}>

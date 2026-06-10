@@ -6,6 +6,7 @@ import { Channel } from "@/lib/types";
 import { useCustomFoldersStore } from "@/lib/store/custom-folders-store";
 import { useChannelManagementStore } from "@/lib/store/channel-management-store";
 import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 interface ContextMenuProps {
@@ -18,7 +19,8 @@ interface ContextMenuProps {
 
 export function ContextMenu({ channel, x, y, onClose, onRename }: ContextMenuProps) {
   const { folders, moveChannelToFolder, getChannelFolder } = useCustomFoldersStore();
-  const { deleteChannel } = useChannelManagementStore();
+  const { deleteChannel, restoreChannel } = useChannelManagementStore();
+  const { addToast } = useToast();
   const [showFolderSubmenu, setShowFolderSubmenu] = useState(false);
 
   const currentFolder = getChannelFolder(channel.id);
@@ -46,16 +48,21 @@ export function ContextMenu({ channel, x, y, onClose, onRename }: ContextMenuPro
   };
 
   const handleDelete = () => {
-    if (confirm(`Delete "${channel.name}"?\n\nYou can restore it from Settings → Channels → Trash`)) {
-      deleteChannel({
-        id: channel.id,
-        name: channel.name,
-        url: channel.url,
-        logo: channel.logo,
-        group: channel.group,
-      });
-      onClose();
-    }
+    deleteChannel({
+      id: channel.id,
+      name: channel.name,
+      url: channel.url,
+      logo: channel.logo,
+      group: channel.group,
+    });
+    addToast(`Deleted "${channel.name}"`, "info", 5000, {
+      label: "Undo",
+      onClick: () => {
+        restoreChannel(channel.id);
+        window.dispatchEvent(new CustomEvent("channelDeleted"));
+      },
+    });
+    onClose();
   };
 
   const handleRename = () => {

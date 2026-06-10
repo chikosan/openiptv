@@ -108,8 +108,10 @@ export function ChannelList() {
     }
   }, [pullDistance, isRefreshing, playlists, refreshPlaylist]);
 
-  // Get hidden channel IDs once and memoize
-  const hiddenChannelIds = useMemo(() => getHiddenChannelIds(), [getHiddenChannelIds]);
+  // Hidden channel IDs - refreshKey ties this to 'channelDeleted' events,
+  // since the store getter itself has a stable identity
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const hiddenChannelIds = useMemo(() => getHiddenChannelIds(), [getHiddenChannelIds, refreshKey]);
 
   // Force refresh when hidden channels change
   useEffect(() => {

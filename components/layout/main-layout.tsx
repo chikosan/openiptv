@@ -122,7 +122,16 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
       {/* TV Guide */}
       {guideOpen && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                Loading guide…
+              </div>
+            </div>
+          }
+        >
           <EPGGrid isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
         </Suspense>
       )}

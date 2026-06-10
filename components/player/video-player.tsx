@@ -21,6 +21,7 @@ import { useWatchHistoryStore } from "@/lib/store/watch-history-store";
 import { usePreferencesStore } from "@/lib/store/preferences-store";
 import { useTVMode } from "@/lib/hooks/use-tv-mode";
 import { OrientationLockButton } from "./orientation-lock-button";
+import { SleepTimerButton } from "./sleep-timer-button";
 import { TrackSelector } from "./track-selector";
 import { StreamInfoOverlay } from "./stream-info-overlay";
 import { useToast } from "@/components/ui/toast";
@@ -624,6 +625,7 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         <RecordButton channel={channel} videoElement={videoElementRef.current} />
         <QualitySelector player={playerRef.current} />
         <TrackSelector hls={hlsInstance} />
+        <SleepTimerButton videoElement={videoElementRef.current} />
         <OrientationLockButton />
         <PipButton videoElement={videoElementRef.current} />
         <CastButton onCastStateChange={handleCastStateChange} />

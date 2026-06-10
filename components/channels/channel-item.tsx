@@ -12,6 +12,7 @@ import { useTVMode } from "@/lib/hooks/use-tv-mode";
 import { useLongPress } from "@/lib/hooks/use-long-press";
 import { useNowNext } from "@/lib/hooks/use-now-next";
 import { epgManager } from "@/lib/epg/epg-manager";
+import { useToast } from "@/components/ui/toast";
 import { cn, vibrate } from "@/lib/utils";
 import Image from "next/image";
 
@@ -23,7 +24,8 @@ interface ChannelItemProps {
 
 export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActive }: ChannelItemProps) {
   const { setCurrentChannel, toggleFavorite } = usePlaylistStore();
-  const { deleteChannel } = useChannelManagementStore();
+  const { deleteChannel, restoreChannel } = useChannelManagementStore();
+  const { addToast } = useToast();
   const { ui } = usePreferencesStore();
   const showNumbers = ui.showChannelNumbers;
   const recordingCount = useRecordingCount(channel.id);
@@ -113,17 +115,22 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
   const handleDeleteClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (confirm(`Delete "${channel.name}"?\n\nYou can restore it from Settings → Channels → Trash`)) {
-        deleteChannel({
-          id: channel.id,
-          name: channel.name,
-          url: channel.url,
-          logo: channel.logo,
-          group: channel.group,
-        });
-      }
+      deleteChannel({
+        id: channel.id,
+        name: channel.name,
+        url: channel.url,
+        logo: channel.logo,
+        group: channel.group,
+      });
+      addToast(`Deleted "${channel.name}"`, "info", 5000, {
+        label: "Undo",
+        onClick: () => {
+          restoreChannel(channel.id);
+          window.dispatchEvent(new CustomEvent("channelDeleted"));
+        },
+      });
     },
-    [channel, deleteChannel],
+    [channel, deleteChannel, restoreChannel, addToast],
   );
 
   if (viewMode === "grid") {
