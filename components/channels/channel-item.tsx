@@ -1,74 +1,83 @@
-"use client"
+"use client";
 
-import { useState, memo, useCallback } from "react"
-import { Star, Play, Trash2, Radio, History, Video } from "lucide-react"
-import { Channel } from "@/lib/types"
-import { usePlaylistStore } from "@/lib/store/playlist-store"
-import { useChannelManagementStore } from "@/lib/store/channel-management-store"
-import { usePreferencesStore } from "@/lib/store/preferences-store"
-import { useRecordingCount } from "@/lib/store/recordings-store"
-import { ContextMenu } from "./context-menu"
-import { cn } from "@/lib/utils"
-import Image from "next/image"
+import { useState, memo, useCallback } from "react";
+import { Star, Play, Trash2, Radio, History, Video } from "lucide-react";
+import { Channel } from "@/lib/types";
+import { usePlaylistStore } from "@/lib/store/playlist-store";
+import { useChannelManagementStore } from "@/lib/store/channel-management-store";
+import { usePreferencesStore } from "@/lib/store/preferences-store";
+import { useRecordingCount } from "@/lib/store/recordings-store";
+import { ContextMenu } from "./context-menu";
+import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 interface ChannelItemProps {
-  channel: Channel
-  viewMode: "grid" | "list"
-  isActive: boolean
+  channel: Channel;
+  viewMode: "grid" | "list";
+  isActive: boolean;
 }
 
 export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActive }: ChannelItemProps) {
-  const { setCurrentChannel, toggleFavorite } = usePlaylistStore()
-  const { deleteChannel } = useChannelManagementStore()
-  const { ui } = usePreferencesStore()
-  const showNumbers = ui.showChannelNumbers
-  const recordingCount = useRecordingCount(channel.id)
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [editName, setEditName] = useState(channel.name)
-  const [isDragging, setIsDragging] = useState(false)
-  const [isHovered, setIsHovered] = useState(false)
+  const { setCurrentChannel, toggleFavorite } = usePlaylistStore();
+  const { deleteChannel } = useChannelManagementStore();
+  const { ui } = usePreferencesStore();
+  const showNumbers = ui.showChannelNumbers;
+  const recordingCount = useRecordingCount(channel.id);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [editName, setEditName] = useState(channel.name);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleClick = useCallback(() => {
     if (!isRenaming) {
-      setCurrentChannel(channel)
+      setCurrentChannel(channel);
     }
-  }, [isRenaming, channel, setCurrentChannel])
+  }, [isRenaming, channel, setCurrentChannel]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setContextMenu({ x: e.clientX, y: e.clientY })
-  }, [])
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
 
-  const handleDragStart = useCallback((e: React.DragEvent) => {
-    setIsDragging(true)
-    e.dataTransfer.effectAllowed = "move"
-    e.dataTransfer.setData("channelId", channel.id)
-    e.dataTransfer.setData("channelData", JSON.stringify(channel))
-  }, [channel])
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      setIsDragging(true);
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("channelId", channel.id);
+      e.dataTransfer.setData("channelData", JSON.stringify(channel));
+    },
+    [channel],
+  );
 
   const handleDragEnd = useCallback(() => {
-    setIsDragging(false)
-  }, [])
+    setIsDragging(false);
+  }, []);
 
-  const handleFavoriteClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    toggleFavorite(channel.id)
-  }, [channel.id, toggleFavorite])
+  const handleFavoriteClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      toggleFavorite(channel.id);
+    },
+    [channel.id, toggleFavorite],
+  );
 
-  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (confirm(`Delete "${channel.name}"?\n\nYou can restore it from Settings → Channels → Trash`)) {
-      deleteChannel({
-        id: channel.id,
-        name: channel.name,
-        url: channel.url,
-        logo: channel.logo,
-        group: channel.group,
-      })
-    }
-  }, [channel, deleteChannel])
+  const handleDeleteClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (confirm(`Delete "${channel.name}"?\n\nYou can restore it from Settings → Channels → Trash`)) {
+        deleteChannel({
+          id: channel.id,
+          name: channel.name,
+          url: channel.url,
+          logo: channel.logo,
+          group: channel.group,
+        });
+      }
+    },
+    [channel, deleteChannel],
+  );
 
   if (viewMode === "grid") {
     return (
@@ -77,7 +86,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           role="button"
           tabIndex={0}
           onClick={handleClick}
-          onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+          onKeyDown={(e) => e.key === "Enter" && handleClick()}
           onContextMenu={handleContextMenu}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
@@ -87,8 +96,10 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           className={cn(
             "relative group p-3 rounded-xl border transition-all duration-300 cursor-pointer",
             "hover:border-primary hover:shadow-xl hover:shadow-primary/20 hover:scale-105 hover:-translate-y-1",
-            isActive ? "border-primary bg-gradient-to-br from-primary/20 to-primary/5 ring-2 ring-primary/50" : "bg-card hover:bg-card/80",
-            isDragging && "opacity-50 scale-95"
+            isActive
+              ? "border-primary bg-gradient-to-br from-primary/20 to-primary/5 ring-2 ring-primary/50"
+              : "bg-card hover:bg-card/80",
+            isDragging && "opacity-50 scale-95",
           )}
           title={channel.name}
         >
@@ -108,23 +119,24 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
                 alt={channel.name}
                 fill
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                className={cn(
-                  "object-contain p-2 transition-transform duration-300",
-                  isHovered && "scale-110"
-                )}
+                className={cn("object-contain p-2 transition-transform duration-300", isHovered && "scale-110")}
               />
             ) : (
-              <Play className={cn(
-                "h-10 w-10 text-muted-foreground transition-all duration-300",
-                isHovered && "scale-125 text-primary"
-              )} />
+              <Play
+                className={cn(
+                  "h-10 w-10 text-muted-foreground transition-all duration-300",
+                  isHovered && "scale-125 text-primary",
+                )}
+              />
             )}
-            
+
             {/* Play overlay on hover */}
-            <div className={cn(
-              "absolute inset-0 bg-black/60 flex items-center justify-center transition-opacity duration-300",
-              isHovered ? "opacity-100" : "opacity-0"
-            )}>
+            <div
+              className={cn(
+                "absolute inset-0 bg-black/60 flex items-center justify-center transition-opacity duration-300",
+                isHovered ? "opacity-100" : "opacity-0",
+              )}
+            >
               <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg transform transition-transform duration-300 hover:scale-110">
                 <Play className="h-6 w-6 text-black fill-black ml-1" />
               </div>
@@ -132,10 +144,10 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           </div>
 
           {/* Channel Name - Full name */}
-          <div 
+          <div
             className={cn(
               "text-sm font-semibold mb-1 transition-colors duration-200 leading-tight",
-              isHovered ? "text-primary" : ""
+              isHovered ? "text-primary" : "",
             )}
             title={channel.name}
           >
@@ -158,33 +170,31 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
 
           {/* Recordings badge */}
           {recordingCount > 0 && (
-            <div className="absolute top-2 right-2 z-10 flex items-center gap-1 px-1.5 py-0.5 bg-red-600/90 text-white text-[10px] font-bold rounded-full" style={{ right: channel.isFavorite ? '2rem' : '0.5rem' }}>
+            <div
+              className="absolute top-2 right-2 z-10 flex items-center gap-1 px-1.5 py-0.5 bg-red-600/90 text-white text-[10px] font-bold rounded-full"
+              style={{ right: channel.isFavorite ? "2rem" : "0.5rem" }}
+            >
               <Video className="h-3 w-3" />
               {recordingCount}
             </div>
           )}
 
           {/* Action Buttons - Show on hover */}
-          <div className={cn(
-            "absolute bottom-2 right-2 flex gap-1 transition-all duration-300",
-            isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
-          )}>
+          <div
+            className={cn(
+              "absolute bottom-2 right-2 flex gap-1 transition-all duration-300 tv-focus-reveal",
+              isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
+            )}
+          >
             <button
               onClick={handleFavoriteClick}
               className={cn(
                 "p-2 rounded-full backdrop-blur-md transition-all duration-200",
-                channel.isFavorite 
-                  ? "bg-yellow-500/30 hover:bg-yellow-500/50" 
-                  : "bg-black/50 hover:bg-black/70"
+                channel.isFavorite ? "bg-yellow-500/30 hover:bg-yellow-500/50" : "bg-black/50 hover:bg-black/70",
               )}
               title={channel.isFavorite ? "Remove from favorites" : "Add to favorites"}
             >
-              <Star
-                className={cn(
-                  "h-4 w-4",
-                  channel.isFavorite ? "fill-yellow-500 text-yellow-500" : "text-white"
-                )}
-              />
+              <Star className={cn("h-4 w-4", channel.isFavorite ? "fill-yellow-500 text-yellow-500" : "text-white")} />
             </button>
             <button
               onClick={handleDeleteClick}
@@ -205,7 +215,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           />
         )}
       </>
-    )
+    );
   }
 
   return (
@@ -214,7 +224,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
         role="button"
         tabIndex={0}
         onClick={handleClick}
-        onKeyDown={(e) => e.key === 'Enter' && handleClick()}
+        onKeyDown={(e) => e.key === "Enter" && handleClick()}
         onContextMenu={handleContextMenu}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -225,7 +235,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           "w-full group flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 cursor-pointer relative",
           "hover:bg-gradient-to-r hover:from-primary/20 hover:to-transparent hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10",
           isActive && "bg-gradient-to-r from-primary/30 to-primary/10 border-l-4 border-primary",
-          isDragging && "opacity-50 scale-95"
+          isDragging && "opacity-50 scale-95",
         )}
         title={channel.name}
       >
@@ -239,25 +249,19 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
         {/* Channel Number */}
         {showNumbers && (channel.tvgChno || channel.order) && (
           <div className="w-8 text-center flex-shrink-0">
-            <span className="text-xs font-mono text-muted-foreground">
-              {channel.tvgChno || channel.order}
-            </span>
+            <span className="text-xs font-mono text-muted-foreground">{channel.tvgChno || channel.order}</span>
           </div>
         )}
 
         {/* Logo or Placeholder */}
-        <div className={cn(
-          "relative w-14 h-10 flex-shrink-0 rounded-md bg-muted/50 flex items-center justify-center overflow-hidden transition-transform duration-200",
-          isHovered && "scale-110 shadow-md"
-        )}>
+        <div
+          className={cn(
+            "relative w-14 h-10 flex-shrink-0 rounded-md bg-muted/50 flex items-center justify-center overflow-hidden transition-transform duration-200",
+            isHovered && "scale-110 shadow-md",
+          )}
+        >
           {channel.logo ? (
-            <Image
-              src={channel.logo}
-              alt={channel.name}
-              fill
-              sizes="56px"
-              className="object-contain p-1"
-            />
+            <Image src={channel.logo} alt={channel.name} fill sizes="56px" className="object-contain p-1" />
           ) : (
             <Play className="h-4 w-4 text-muted-foreground" />
           )}
@@ -272,11 +276,11 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
         {/* Channel Info - Full name with tooltip */}
         <div className="flex-1 text-left min-w-0 pr-2">
           <div className="flex items-center gap-1.5">
-            <div 
+            <div
               className={cn(
                 "font-medium text-sm transition-colors duration-200 flex-1 min-w-0",
                 isHovered ? "text-primary" : "",
-                isActive ? "text-primary font-semibold" : ""
+                isActive ? "text-primary font-semibold" : "",
               )}
               title={channel.name}
             >
@@ -285,7 +289,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
             </div>
             {/* Catchup badge */}
             {channel.catchup && (
-              <span 
+              <span
                 className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded"
                 title={`${channel.catchup.days} day catchup available`}
               >
@@ -295,9 +299,9 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
             )}
             {/* Recordings badge */}
             {recordingCount > 0 && (
-              <span 
+              <span
                 className="flex-shrink-0 flex items-center gap-0.5 text-[10px] font-medium text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded"
-                title={`${recordingCount} recording${recordingCount > 1 ? 's' : ''} available`}
+                title={`${recordingCount} recording${recordingCount > 1 ? "s" : ""} available`}
               >
                 <Video className="h-2.5 w-2.5" />
                 {recordingCount}
@@ -312,24 +316,26 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
         </div>
 
         {/* Action Buttons */}
-        <div className={cn(
-          "flex items-center gap-0.5 flex-shrink-0 transition-opacity duration-200",
-          isHovered ? "opacity-100" : "opacity-0"
-        )}>
+        <div
+          className={cn(
+            "flex items-center gap-0.5 flex-shrink-0 transition-opacity duration-200 tv-focus-reveal",
+            isHovered ? "opacity-100" : "opacity-0",
+          )}
+        >
           <button
             onClick={handleFavoriteClick}
             className={cn(
               "p-1.5 rounded-full transition-all duration-200",
-              channel.isFavorite 
-                ? "bg-yellow-500/20 hover:bg-yellow-500/30" 
-                : "hover:bg-accent"
+              channel.isFavorite ? "bg-yellow-500/20 hover:bg-yellow-500/30" : "hover:bg-accent",
             )}
             title={channel.isFavorite ? "Remove from favorites" : "Add to favorites"}
           >
             <Star
               className={cn(
                 "h-4 w-4 transition-transform duration-200",
-                channel.isFavorite ? "fill-yellow-500 text-yellow-500 scale-110" : "text-muted-foreground hover:scale-110"
+                channel.isFavorite
+                  ? "fill-yellow-500 text-yellow-500 scale-110"
+                  : "text-muted-foreground hover:scale-110",
               )}
             />
           </button>
@@ -357,5 +363,5 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
         />
       )}
     </>
-  )
-})
+  );
+});
