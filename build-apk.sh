@@ -38,13 +38,17 @@ echo "⚙️  Applying Capacitor config (target: ${BUILD_TARGET})..."
 BUILD_TARGET="$BUILD_TARGET" npx cap copy android
 
 # Step 2: Build Docker image (cached after first run)
+# --platform linux/amd64: AAPT2 is an x86_64 binary; run via Rosetta 2 on Apple Silicon
 echo "🔨 Building Docker image (cached after first run)..."
-docker build --quiet -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile.android" "$SCRIPT_DIR"
+docker build --quiet --platform linux/amd64 -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile.android" "$SCRIPT_DIR"
 
 # Step 3: Build APK inside Docker
+# Also mount node_modules/@capacitor/android — capacitor.settings.gradle references it
+# at ../node_modules/@capacitor/android/capacitor (relative to android/)
 echo "📦 Building ${BUILD_TARGET} APK..."
-docker run --rm \
+docker run --rm --platform linux/amd64 \
     -v "$SCRIPT_DIR/android":/workspace/android \
+    -v "$SCRIPT_DIR/node_modules/@capacitor/android":/workspace/node_modules/@capacitor/android \
     -v "$GRADLE_VOLUME":/root/.gradle \
     -w /workspace \
     "$IMAGE_NAME" \
