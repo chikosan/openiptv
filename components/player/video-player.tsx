@@ -1,102 +1,104 @@
-"use client"
+"use client";
 
-import { useEffect, useRef, useState, useCallback } from "react"
-import { Channel } from "@/lib/types"
-import videojs from "video.js"
-import Hls, { type Level } from "hls.js"
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Channel } from "@/lib/types";
+import videojs from "video.js";
+import Hls, { type Level } from "hls.js";
 
-type QualityLevel = { height: number; enabled: boolean }
+type QualityLevel = { height: number; enabled: boolean };
 type VjsPlayer = ReturnType<typeof videojs> & {
-  qualityLevels?: () => QualityLevel[] & { length: number }
-}
-import "video.js/dist/video-js.css"
-import { chromecastManager } from "@/lib/chromecast"
-import { CastButton } from "./cast-button"
-import { CastOverlay } from "./cast-overlay"
-import { PipButton } from "./pip-button"
-import { QualitySelector } from "./quality-selector"
-import { RecordButton } from "./record-button"
-import { ChannelInfoOverlay } from "./channel-info-overlay"
-import { useWatchHistoryStore } from "@/lib/store/watch-history-store"
-import { usePreferencesStore } from "@/lib/store/preferences-store"
-import { Volume2, VolumeX } from "lucide-react"
+  qualityLevels?: () => QualityLevel[] & { length: number };
+};
+import "video.js/dist/video-js.css";
+import { chromecastManager } from "@/lib/chromecast";
+import { CastButton } from "./cast-button";
+import { CastOverlay } from "./cast-overlay";
+import { PipButton } from "./pip-button";
+import { QualitySelector } from "./quality-selector";
+import { RecordButton } from "./record-button";
+import { ChannelInfoOverlay } from "./channel-info-overlay";
+import { useWatchHistoryStore } from "@/lib/store/watch-history-store";
+import { usePreferencesStore } from "@/lib/store/preferences-store";
+import { useTVMode } from "@/lib/hooks/use-tv-mode";
+import { Volume2, VolumeX } from "lucide-react";
 
 interface VideoPlayerProps {
-  channel: Channel
-  streamUrl?: string | null // Override URL for catchup playback
-  onNextChannel?: () => void
-  onPrevChannel?: () => void
+  channel: Channel;
+  streamUrl?: string | null; // Override URL for catchup playback
+  onNextChannel?: () => void;
+  onPrevChannel?: () => void;
 }
 
 export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }: VideoPlayerProps) {
-  const videoRef = useRef<HTMLDivElement>(null)
-  const playerRef = useRef<VjsPlayer | null>(null)
-  const videoElementRef = useRef<HTMLVideoElement | null>(null)
-  const hlsRef = useRef<Hls | null>(null)
-  const watchTimeRef = useRef<number>(0)
-  const watchIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  
-  const [error, setError] = useState<string>("")
-  const [isLoading, setIsLoading] = useState(true)
-  const [isCasting, setIsCasting] = useState(false)
-  const [qualityLevels, setQualityLevels] = useState<Level[]>([])
-  const [needsUserInteraction, setNeedsUserInteraction] = useState(false)
-  const [showChannelInfo, setShowChannelInfo] = useState(true)
-  const [showVolumeIndicator, setShowVolumeIndicator] = useState(false)
-  const [currentVolume, setCurrentVolume] = useState(1)
+  const videoRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<VjsPlayer | null>(null);
+  const videoElementRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const watchTimeRef = useRef<number>(0);
+  const watchIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [error, setError] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCasting, setIsCasting] = useState(false);
+  const [qualityLevels, setQualityLevels] = useState<Level[]>([]);
+  const [needsUserInteraction, setNeedsUserInteraction] = useState(false);
+  const [showChannelInfo, setShowChannelInfo] = useState(true);
+  const [showVolumeIndicator, setShowVolumeIndicator] = useState(false);
+  const [currentVolume, setCurrentVolume] = useState(1);
 
   // Stores
-  const { addToHistory, updateWatchTime } = useWatchHistoryStore()
-  const { player: playerPrefs, setVolume, setMuted } = usePreferencesStore()
+  const { addToHistory, updateWatchTime } = useWatchHistoryStore();
+  const { player: playerPrefs, setVolume, setMuted } = usePreferencesStore();
+  const isTVMode = useTVMode();
 
   // Use streamUrl if provided (for catchup), otherwise use channel URL
-  const currentStreamUrl = streamUrl || channel.url
-  const isCatchupMode = !!streamUrl
+  const currentStreamUrl = streamUrl || channel.url;
+  const isCatchupMode = !!streamUrl;
 
   // Track watch time
   useEffect(() => {
-    if (!channel) return
+    if (!channel) return;
 
     // Add to history when channel starts
-    addToHistory(channel)
-    watchTimeRef.current = 0
+    addToHistory(channel);
+    watchTimeRef.current = 0;
 
     // Track watch time every 10 seconds
     watchIntervalRef.current = setInterval(() => {
-      watchTimeRef.current += 10
-      updateWatchTime(channel.id, 10)
-    }, 10000)
+      watchTimeRef.current += 10;
+      updateWatchTime(channel.id, 10);
+    }, 10000);
 
     return () => {
       if (watchIntervalRef.current) {
-        clearInterval(watchIntervalRef.current)
+        clearInterval(watchIntervalRef.current);
       }
-    }
-  }, [channel, addToHistory, updateWatchTime])
+    };
+  }, [channel, addToHistory, updateWatchTime]);
 
   // Apply saved volume preference
   useEffect(() => {
-    const videoElement = videoElementRef.current
+    const videoElement = videoElementRef.current;
     if (videoElement) {
-      videoElement.volume = playerPrefs.volume
-      videoElement.muted = playerPrefs.muted
-      setCurrentVolume(playerPrefs.volume)
+      videoElement.volume = playerPrefs.volume;
+      videoElement.muted = playerPrefs.muted;
+      setCurrentVolume(playerPrefs.volume);
     }
-  }, [playerPrefs.volume, playerPrefs.muted])
+  }, [playerPrefs.volume, playerPrefs.muted]);
 
   // Volume indicator
   const showVolumeChange = useCallback((volume: number) => {
-    setCurrentVolume(volume)
-    setShowVolumeIndicator(true)
-    setTimeout(() => setShowVolumeIndicator(false), 1500)
-  }, [])
+    setCurrentVolume(volume);
+    setShowVolumeIndicator(true);
+    setTimeout(() => setShowVolumeIndicator(false), 1500);
+  }, []);
 
   useEffect(() => {
     // Make sure Video.js player is only initialized once
     if (!playerRef.current && videoRef.current) {
-      const videoElement = document.createElement("video-js")
-      videoElement.classList.add("vjs-big-play-centered")
-      videoRef.current.appendChild(videoElement)
+      const videoElement = document.createElement("video-js");
+      videoElement.classList.add("vjs-big-play-centered");
+      videoRef.current.appendChild(videoElement);
 
       const player = (playerRef.current = videojs(
         videoElement,
@@ -109,69 +111,65 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
           liveui: true,
         },
         () => {
-          console.log("Video.js player initialized with hls.js support")
-          videoElementRef.current = player.el().querySelector("video")
-        }
-      ))
+          console.log("Video.js player initialized with hls.js support");
+          videoElementRef.current = player.el().querySelector("video");
+        },
+      ));
 
       // Error handling
       player.on("error", () => {
-        const error = player.error()
+        const error = player.error();
         if (error) {
-          console.error("Video.js error:", error)
-          setError(`Failed to load stream: ${error.message || "Unknown error"}`)
-          setIsLoading(false)
+          console.error("Video.js error:", error);
+          setError(`Failed to load stream: ${error.message || "Unknown error"}`);
+          setIsLoading(false);
         }
-      })
+      });
 
       // Loading events
       player.on("loadstart", () => {
-        setIsLoading(true)
-        setError("")
-      })
+        setIsLoading(true);
+        setError("");
+      });
 
       player.on("canplay", () => {
-        setIsLoading(false)
-      })
+        setIsLoading(false);
+      });
 
       player.on("playing", () => {
-        setIsLoading(false)
-      })
+        setIsLoading(false);
+      });
 
       player.on("waiting", () => {
-        setIsLoading(true)
-      })
+        setIsLoading(true);
+      });
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    const player = playerRef.current
-    const videoElement = videoElementRef.current
+    const player = playerRef.current;
+    const videoElement = videoElementRef.current;
 
-    if (!player || !videoElement || !channel) return
+    if (!player || !videoElement || !channel) return;
 
-    setError("")
-    setIsLoading(true)
-    setNeedsUserInteraction(false)
+    setError("");
+    setIsLoading(true);
+    setNeedsUserInteraction(false);
 
     // If casting, load on Chromecast instead
     if (isCasting) {
-      chromecastManager.loadMedia(
-        currentStreamUrl,
-        channel.name,
-        channel.logo
-      ).catch((err) => {
-        console.error("Failed to load on Chromecast:", err)
-        setError("Failed to cast stream")
-        setIsLoading(false)
-      })
-      return
+      chromecastManager.loadMedia(currentStreamUrl, channel.name, channel.logo).catch((err) => {
+        console.error("Failed to load on Chromecast:", err);
+        setError("Failed to cast stream");
+        setIsLoading(false);
+      });
+      return;
     }
 
     // Clean up previous hls.js instance
     if (hlsRef.current) {
-      hlsRef.current.destroy()
-      hlsRef.current = null
+      hlsRef.current.destroy();
+      hlsRef.current = null;
     }
 
     // Use hls.js for HLS streams (non-Safari browsers)
@@ -205,146 +203,174 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         abrBandWidthUpFactor: 0.7,
         // Progressive loading for better experience on slow connections
         progressive: true,
-      })
+      });
 
-      hlsRef.current = hls
+      hlsRef.current = hls;
 
       // Event handlers
       hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-        console.log("HLS manifest loaded, found " + data.levels.length + " quality levels")
-        setQualityLevels(data.levels)
-        
+        console.log("HLS manifest loaded, found " + data.levels.length + " quality levels");
+        setQualityLevels(data.levels);
+
         // Start playback with muted fallback for autoplay restrictions
         videoElement.play().catch((err) => {
-          console.warn("Autoplay failed, trying muted:", err)
+          console.warn("Autoplay failed, trying muted:", err);
           // Try muted autoplay (usually allowed)
-          videoElement.muted = true
+          videoElement.muted = true;
           videoElement.play().catch((err2) => {
-            console.warn("Muted autoplay also failed:", err2)
-            setNeedsUserInteraction(true)
-            setIsLoading(false)
-          })
-        })
-      })
+            console.warn("Muted autoplay also failed:", err2);
+            setNeedsUserInteraction(true);
+            setIsLoading(false);
+          });
+        });
+      });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
-        console.log("Quality level switched to: " + data.level)
-      })
+        console.log("Quality level switched to: " + data.level);
+      });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error("HLS.js error:", data)
-        
+        console.error("HLS.js error:", data);
+
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.error("Fatal network error, trying to recover...")
-              setError("Network error. Retrying...")
-              hls.startLoad()
-              break
+              console.error("Fatal network error, trying to recover...");
+              setError("Network error. Retrying...");
+              hls.startLoad();
+              break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.error("Fatal media error, trying to recover...")
-              setError("Media error. Attempting recovery...")
-              hls.recoverMediaError()
-              break
+              console.error("Fatal media error, trying to recover...");
+              setError("Media error. Attempting recovery...");
+              hls.recoverMediaError();
+              break;
             default:
-              console.error("Fatal error, cannot recover")
-              setError(`Playback failed: ${data.details}`)
-              setIsLoading(false)
-              hls.destroy()
-              break
+              console.error("Fatal error, cannot recover");
+              setError(`Playback failed: ${data.details}`);
+              setIsLoading(false);
+              hls.destroy();
+              break;
           }
         }
-      })
+      });
 
       // Load source
-      hls.loadSource(currentStreamUrl)
-      hls.attachMedia(videoElement)
-    } 
+      hls.loadSource(currentStreamUrl);
+      hls.attachMedia(videoElement);
+    }
     // Native HLS support (Safari)
     else if (videoElement.canPlayType("application/vnd.apple.mpegurl")) {
-      console.log("Using native HLS support (Safari)")
-      videoElement.src = currentStreamUrl
+      console.log("Using native HLS support (Safari)");
+      videoElement.src = currentStreamUrl;
       videoElement.addEventListener("loadedmetadata", () => {
         videoElement.play().catch((err) => {
-          console.error("Autoplay failed:", err)
-          setIsLoading(false)
-        })
-      })
-    } 
+          console.error("Autoplay failed:", err);
+          setIsLoading(false);
+        });
+      });
+    }
     // Fallback to Video.js (shouldn't happen, but just in case)
     else {
-      console.warn("No HLS support detected, falling back to Video.js")
+      console.warn("No HLS support detected, falling back to Video.js");
       player.src({
         src: currentStreamUrl,
         type: "application/x-mpegURL",
-      })
-      player.load()
+      });
+      player.load();
       player.play()?.catch((err: Error) => {
-        console.error("Autoplay failed:", err)
-        setIsLoading(false)
-      })
+        console.error("Autoplay failed:", err);
+        setIsLoading(false);
+      });
     }
 
     // Cleanup function
     return () => {
       if (hlsRef.current) {
-        hlsRef.current.destroy()
-        hlsRef.current = null
+        hlsRef.current.destroy();
+        hlsRef.current = null;
       }
-    }
-  }, [channel, currentStreamUrl, isCasting])
+    };
+  }, [channel, currentStreamUrl, isCasting]);
 
   const handleCastStateChange = (isConnected: boolean) => {
-    setIsCasting(isConnected)
-    
+    setIsCasting(isConnected);
+
     if (isConnected) {
       // Pause local player when casting starts
       if (playerRef.current && !playerRef.current.paused()) {
-        playerRef.current.pause()
+        playerRef.current.pause();
       }
       // Load current channel on Chromecast
-      chromecastManager.loadMedia(
-        currentStreamUrl,
-        channel.name,
-        channel.logo
-      ).catch(console.error)
+      chromecastManager.loadMedia(currentStreamUrl, channel.name, channel.logo).catch(console.error);
     } else {
       // Resume local playback when casting ends
       if (playerRef.current) {
-        playerRef.current.play()?.catch(console.error)
+        playerRef.current.play()?.catch(console.error);
       }
     }
-  }
+  };
 
   // Dispose the Video.js player and hls.js when the component unmounts
   useEffect(() => {
-    const player = playerRef.current
+    const player = playerRef.current;
 
     return () => {
       // Clean up hls.js
       if (hlsRef.current) {
-        hlsRef.current.destroy()
-        hlsRef.current = null
+        hlsRef.current.destroy();
+        hlsRef.current = null;
       }
-      
+
       // Clean up Video.js player
       if (player && !player.isDisposed()) {
-        player.dispose()
-        playerRef.current = null
+        player.dispose();
+        playerRef.current = null;
       }
-    }
-  }, [])
+    };
+  }, []);
+
+  // D-pad volume and play/pause for Android TV / TV mode
+  useEffect(() => {
+    if (!isTVMode) return;
+
+    const handleTVKeyDown = (e: KeyboardEvent) => {
+      const video = videoElementRef.current;
+      if (!video) return;
+
+      switch (e.key) {
+        case "ArrowUp":
+          e.preventDefault();
+          video.volume = Math.min(1, video.volume + 0.1);
+          showVolumeChange(video.volume);
+          setVolume(video.volume);
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          video.volume = Math.max(0, video.volume - 0.1);
+          showVolumeChange(video.volume);
+          setVolume(video.volume);
+          break;
+        case "Enter":
+          e.preventDefault();
+          if (video.paused) {
+            video.play();
+          } else {
+            video.pause();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleTVKeyDown);
+    return () => window.removeEventListener("keydown", handleTVKeyDown);
+  }, [isTVMode, showVolumeChange, setVolume]);
 
   return (
     <div className="relative w-full h-full bg-black group">
       <div ref={videoRef} className="w-full h-full" />
 
       {/* Channel Info Overlay (Netflix-style) */}
-      <ChannelInfoOverlay
-        channel={channel}
-        isVisible={showChannelInfo}
-        onHide={() => setShowChannelInfo(false)}
-      />
+      <ChannelInfoOverlay channel={channel} isVisible={showChannelInfo} onHide={() => setShowChannelInfo(false)} />
 
       {/* Volume Indicator (Netflix-style) */}
       {showVolumeIndicator && (
@@ -356,7 +382,7 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
               <Volume2 className="h-8 w-8 text-white" />
             )}
             <div className="w-24 h-1.5 bg-white/20 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-white rounded-full transition-all duration-150"
                 style={{ width: `${(playerPrefs.muted ? 0 : currentVolume) * 100}%` }}
               />
@@ -378,10 +404,7 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
 
       {/* Cast Overlay */}
       {isCasting && (
-        <CastOverlay 
-          channel={channel} 
-          deviceName={chromecastManager.getCurrentDevice()?.friendlyName || "TV"}
-        />
+        <CastOverlay channel={channel} deviceName={chromecastManager.getCurrentDevice()?.friendlyName || "TV"} />
       )}
 
       {/* Loading Overlay */}
@@ -399,19 +422,22 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <button
             onClick={() => {
-              const videoElement = videoElementRef.current
+              const videoElement = videoElementRef.current;
               if (videoElement) {
-                videoElement.muted = false
-                videoElement.play().then(() => {
-                  setNeedsUserInteraction(false)
-                }).catch(console.error)
+                videoElement.muted = false;
+                videoElement
+                  .play()
+                  .then(() => {
+                    setNeedsUserInteraction(false);
+                  })
+                  .catch(console.error);
               }
             }}
             className="flex flex-col items-center gap-3 p-6 rounded-xl bg-primary/20 hover:bg-primary/30 transition-colors"
           >
             <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center">
               <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z"/>
+                <path d="M8 5v14l11-7z" />
               </svg>
             </div>
             <span className="text-white font-medium">Click to Play</span>
@@ -427,36 +453,36 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
             <p className="text-white mb-4">{error}</p>
             <button
               onClick={() => {
-                setError("")
-                setIsLoading(true)
-                
+                setError("");
+                setIsLoading(true);
+
                 // Retry with hls.js
                 if (hlsRef.current) {
-                  hlsRef.current.destroy()
-                  hlsRef.current = null
+                  hlsRef.current.destroy();
+                  hlsRef.current = null;
                 }
-                
-                const videoElement = videoElementRef.current
+
+                const videoElement = videoElementRef.current;
                 if (videoElement && Hls.isSupported()) {
                   const hls = new Hls({
                     enableWorker: true,
                     startLevel: -1,
-                  })
-                  hlsRef.current = hls
-                  hls.loadSource(currentStreamUrl)
-                  hls.attachMedia(videoElement)
+                  });
+                  hlsRef.current = hls;
+                  hls.loadSource(currentStreamUrl);
+                  hls.attachMedia(videoElement);
                   hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                    videoElement.play().catch(console.error)
-                  })
+                    videoElement.play().catch(console.error);
+                  });
                   hls.on(Hls.Events.ERROR, (event, data) => {
                     if (data.fatal) {
-                      setError(`Retry failed: ${data.details}`)
-                      setIsLoading(false)
+                      setError(`Retry failed: ${data.details}`);
+                      setIsLoading(false);
                     }
-                  })
+                  });
                 } else if (videoElement) {
-                  videoElement.src = currentStreamUrl
-                  videoElement.play().catch(console.error)
+                  videoElement.src = currentStreamUrl;
+                  videoElement.play().catch(console.error);
                 }
               }}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
@@ -467,5 +493,5 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         </div>
       )}
     </div>
-  )
+  );
 }
