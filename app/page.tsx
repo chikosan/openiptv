@@ -1,91 +1,113 @@
-"use client"
+"use client";
 
-import { useEffect, lazy, Suspense, useState, useCallback } from "react"
-import Image from "next/image"
-import { MainLayout } from "@/components/layout/main-layout"
-import { WelcomeScreen } from "@/components/welcome-screen"
-import { ErrorBoundary } from "@/components/error-boundary"
-import { usePlaylistStore } from "@/lib/store/playlist-store"
-import { epgManager } from "@/lib/epg/epg-manager"
-import { ContinueWatching } from "@/components/channels/continue-watching"
-import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/keyboard-shortcuts"
-import { usePreferencesStore } from "@/lib/store/preferences-store"
-import { useRecordingsStore } from "@/lib/store/recordings-store"
-import { VideoPlayerSkeleton, ChannelListSkeleton } from "@/components/ui/skeleton"
-import { CatchupPanel } from "@/components/epg/catchup-panel"
-import { catchupManager } from "@/lib/catchup/catchup-manager"
-import { EPGProgram } from "@/lib/epg/types"
+import { useEffect, lazy, Suspense, useState, useCallback } from "react";
+import Image from "next/image";
+import { MainLayout } from "@/components/layout/main-layout";
+import { WelcomeScreen } from "@/components/welcome-screen";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { usePlaylistStore } from "@/lib/store/playlist-store";
+import { epgManager } from "@/lib/epg/epg-manager";
+import { ContinueWatching } from "@/components/channels/continue-watching";
+import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/keyboard-shortcuts";
+import { usePreferencesStore } from "@/lib/store/preferences-store";
+import { useTVMode } from "@/lib/hooks/use-tv-mode";
+import { useRecordingsStore } from "@/lib/store/recordings-store";
+import { VideoPlayerSkeleton, ChannelListSkeleton } from "@/components/ui/skeleton";
+import { CatchupPanel } from "@/components/epg/catchup-panel";
+import { catchupManager } from "@/lib/catchup/catchup-manager";
+import { EPGProgram } from "@/lib/epg/types";
 
 // Lazy load heavy components for better initial load performance
-const VideoPlayer = lazy(() => import("@/components/player/video-player").then(m => ({ default: m.VideoPlayer })))
-const ChannelList = lazy(() => import("@/components/channels/channel-list").then(m => ({ default: m.ChannelList })))
-const ProgramInfo = lazy(() => import("@/components/epg/program-info").then(m => ({ default: m.ProgramInfo })))
+const VideoPlayer = lazy(() => import("@/components/player/video-player").then((m) => ({ default: m.VideoPlayer })));
+const ChannelList = lazy(() => import("@/components/channels/channel-list").then((m) => ({ default: m.ChannelList })));
+const ProgramInfo = lazy(() => import("@/components/epg/program-info").then((m) => ({ default: m.ProgramInfo })));
 
 export default function Home() {
-  const { playlists, currentChannel, isInitialized, initialize, getVisibleChannels, setCurrentChannel } = usePlaylistStore()
-  const { ui, player, setViewMode, setLastChannel } = usePreferencesStore()
-  const { initialize: initializeRecordings } = useRecordingsStore()
-  const [showShortcuts, setShowShortcuts] = useState(false)
-  const [showCatchup, setShowCatchup] = useState(false)
-  const [catchupUrl, setCatchupUrl] = useState<string | null>(null)
+  const { playlists, currentChannel, isInitialized, initialize, getVisibleChannels, setCurrentChannel } =
+    usePlaylistStore();
+  const { ui, player, setViewMode, setLastChannel } = usePreferencesStore();
+  const { initialize: initializeRecordings } = useRecordingsStore();
+  const isTVMode = useTVMode();
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showCatchup, setShowCatchup] = useState(false);
+  const [catchupUrl, setCatchupUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    initialize()
-    initializeRecordings()
-  }, [initialize, initializeRecordings])
+    initialize();
+    initializeRecordings();
+  }, [initialize, initializeRecordings]);
 
   // Resume last channel on startup
   useEffect(() => {
     if (isInitialized && playlists.length > 0 && !currentChannel && player.resumeLastChannel && player.lastChannelId) {
-      const channels = getVisibleChannels()
-      const lastChannel = channels.find(c => c.id === player.lastChannelId)
+      const channels = getVisibleChannels();
+      const lastChannel = channels.find((c) => c.id === player.lastChannelId);
       if (lastChannel) {
-        setCurrentChannel(lastChannel)
+        setCurrentChannel(lastChannel);
       }
     }
-  }, [isInitialized, playlists, currentChannel, player.resumeLastChannel, player.lastChannelId, getVisibleChannels, setCurrentChannel])
+  }, [
+    isInitialized,
+    playlists,
+    currentChannel,
+    player.resumeLastChannel,
+    player.lastChannelId,
+    getVisibleChannels,
+    setCurrentChannel,
+  ]);
 
   // Save current channel when it changes
   useEffect(() => {
     if (currentChannel) {
-      setLastChannel(currentChannel.id)
+      setLastChannel(currentChannel.id);
     }
-  }, [currentChannel, setLastChannel])
+  }, [currentChannel, setLastChannel]);
+
+  // Auto-focus channel list in TV mode
+  useEffect(() => {
+    if (!isTVMode || !isInitialized || playlists.length === 0) return;
+    const timer = setTimeout(() => {
+      const firstItem = document.querySelector<HTMLElement>('[data-channel-list] [tabindex="0"]');
+      firstItem?.focus();
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [isTVMode, isInitialized, playlists.length]);
 
   // Load EPG data when channels are available
   useEffect(() => {
     if (playlists.length > 0) {
       // Load saved EPG URL from localStorage
-      const savedEpgUrl = localStorage.getItem("epg_url")
+      const savedEpgUrl = localStorage.getItem("epg_url");
       if (savedEpgUrl) {
-        epgManager.setEPGSource(savedEpgUrl)
+        epgManager.setEPGSource(savedEpgUrl);
       }
-      
-      const channels = getVisibleChannels()
-      const channelNames = channels.map(c => c.name)
-      epgManager.loadEPG(channelNames)
+
+      const channels = getVisibleChannels();
+      const channelNames = channels.map((c) => c.name);
+      epgManager.loadEPG(channelNames);
     }
-  }, [playlists, getVisibleChannels])
+  }, [playlists, getVisibleChannels]);
 
   // Channel navigation
-  const navigateChannel = useCallback((direction: "next" | "prev") => {
-    const channels = getVisibleChannels()
-    if (channels.length === 0) return
-    
-    const currentIndex = currentChannel 
-      ? channels.findIndex(c => c.id === currentChannel.id)
-      : -1
-    
-    let newIndex: number
-    if (direction === "next") {
-      newIndex = currentIndex < channels.length - 1 ? currentIndex + 1 : 0
-    } else {
-      newIndex = currentIndex > 0 ? currentIndex - 1 : channels.length - 1
-    }
-    
-    setCurrentChannel(channels[newIndex])
-    setCatchupUrl(null) // Clear catchup when changing channels
-  }, [currentChannel, getVisibleChannels, setCurrentChannel])
+  const navigateChannel = useCallback(
+    (direction: "next" | "prev") => {
+      const channels = getVisibleChannels();
+      if (channels.length === 0) return;
+
+      const currentIndex = currentChannel ? channels.findIndex((c) => c.id === currentChannel.id) : -1;
+
+      let newIndex: number;
+      if (direction === "next") {
+        newIndex = currentIndex < channels.length - 1 ? currentIndex + 1 : 0;
+      } else {
+        newIndex = currentIndex > 0 ? currentIndex - 1 : channels.length - 1;
+      }
+
+      setCurrentChannel(channels[newIndex]);
+      setCatchupUrl(null); // Clear catchup when changing channels
+    },
+    [currentChannel, getVisibleChannels, setCurrentChannel],
+  );
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -94,34 +116,34 @@ export default function Home() {
     onToggleView: () => setViewMode(ui.viewMode === "grid" ? "list" : "grid"),
     onShowShortcuts: () => setShowShortcuts(true),
     onFocusSearch: () => {
-      const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement
-      searchInput?.focus()
+      const searchInput = document.querySelector('input[type="text"]') as HTMLInputElement;
+      searchInput?.focus();
     },
-  })
+  });
 
   // Handle catchup playback
   const handlePlayCatchup = useCallback((url: string, _program: EPGProgram) => {
-    setCatchupUrl(url)
-    setShowCatchup(false)
-  }, [])
+    setCatchupUrl(url);
+    setShowCatchup(false);
+  }, []);
 
   // Clear catchup URL when switching to live
   const handleBackToLive = useCallback(() => {
-    setCatchupUrl(null)
-  }, [])
+    setCatchupUrl(null);
+  }, []);
 
-  const hasPlaylists = playlists.length > 0
+  const hasPlaylists = playlists.length > 0;
 
   if (!isInitialized) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>
-    )
+    );
   }
 
   if (!hasPlaylists) {
-    return <WelcomeScreen />
+    return <WelcomeScreen />;
   }
 
   return (
@@ -130,19 +152,14 @@ export default function Home() {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col gap-4 p-2 md:p-4 overflow-y-auto">
           {/* Continue Watching Section (Netflix-style) */}
-          {!currentChannel && (
-            <ContinueWatching 
-              onChannelSelect={setCurrentChannel}
-              className="flex-shrink-0"
-            />
-          )}
+          {!currentChannel && <ContinueWatching onChannelSelect={setCurrentChannel} className="flex-shrink-0" />}
 
           {/* Video Player */}
           <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex-shrink-0">
             {currentChannel ? (
               <ErrorBoundary>
                 <Suspense fallback={<VideoPlayerSkeleton />}>
-                  <VideoPlayer 
+                  <VideoPlayer
                     channel={currentChannel}
                     streamUrl={catchupUrl}
                     onNextChannel={() => navigateChannel("next")}
@@ -202,17 +219,14 @@ export default function Home() {
                     {catchupUrl && (
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-orange-500 font-medium">⏪ Catchup Mode</span>
-                        <button
-                          onClick={handleBackToLive}
-                          className="text-xs text-primary hover:underline"
-                        >
+                        <button onClick={handleBackToLive} className="text-xs text-primary hover:underline">
                           Back to Live
                         </button>
                       </div>
                     )}
                   </div>
                 </div>
-                
+
                 {/* Keyboard shortcuts hint */}
                 <div className="flex items-center gap-3 mt-4 pt-3 border-t border-border/50">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -229,7 +243,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-              
+
               {/* EPG Info or Catchup Panel */}
               {showCatchup ? (
                 <CatchupPanel
@@ -238,17 +252,19 @@ export default function Home() {
                   onClose={() => setShowCatchup(false)}
                 />
               ) : (
-                <Suspense fallback={
-                  <div className="p-4 md:p-5 bg-card rounded-xl border flex items-center justify-center min-h-[120px]">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      Loading program info...
+                <Suspense
+                  fallback={
+                    <div className="p-4 md:p-5 bg-card rounded-xl border flex items-center justify-center min-h-[120px]">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        Loading program info...
+                      </div>
                     </div>
-                  </div>
-                }>
-                  <ProgramInfo 
-                    channel={currentChannel} 
-                    compact 
+                  }
+                >
+                  <ProgramInfo
+                    channel={currentChannel}
+                    compact
                     onWatchFromStart={handlePlayCatchup}
                     onShowCatchup={() => setShowCatchup(true)}
                   />
@@ -259,7 +275,10 @@ export default function Home() {
         </div>
 
         {/* Channel List Sidebar - Fixed height with independent scroll */}
-        <div className="w-full lg:w-96 h-[40vh] lg:h-full flex-shrink-0 border-t lg:border-t-0 lg:border-l">
+        <div
+          data-channel-list
+          className="w-full lg:w-96 h-[40vh] lg:h-full flex-shrink-0 border-t lg:border-t-0 lg:border-l"
+        >
           <ErrorBoundary>
             <Suspense fallback={<ChannelListSkeleton count={8} viewMode={ui.viewMode} />}>
               <ChannelList />
@@ -269,10 +288,7 @@ export default function Home() {
       </div>
 
       {/* Keyboard Shortcuts Modal */}
-      <KeyboardShortcutsModal 
-        isOpen={showShortcuts} 
-        onClose={() => setShowShortcuts(false)} 
-      />
+      <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </MainLayout>
-  )
+  );
 }
