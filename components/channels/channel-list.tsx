@@ -29,6 +29,7 @@ export function ChannelList() {
     usePlaylistStore();
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const pullStartYRef = useRef<number | null>(null);
   const { getHiddenChannelIds } = useChannelManagementStore();
   const { folders, createFolder, renameFolder, deleteFolder, getFolders } = useCustomFoldersStore();
@@ -135,10 +136,36 @@ export function ChannelList() {
       allChannels = getVisibleChannels();
     }
 
-    // Filter out hidden/deleted channels
-    return allChannels.filter((ch) => !hiddenIds.has(ch.id));
+    // Filter out hidden/deleted channels, then by selected category chip
+    let result = allChannels.filter((ch) => !hiddenIds.has(ch.id));
+    if (selectedGroup) {
+      result = result.filter((ch) => ch.group === selectedGroup);
+    }
+    return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, filterMode, searchChannels, getVisibleChannels, getFavoriteChannels, hiddenChannelIds, refreshKey]);
+  }, [
+    searchQuery,
+    filterMode,
+    selectedGroup,
+    searchChannels,
+    getVisibleChannels,
+    getFavoriteChannels,
+    hiddenChannelIds,
+    refreshKey,
+  ]);
+
+  // Category chips: group-title values from the full visible list (top 12 by count)
+  const categoryChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const ch of getVisibleChannels()) {
+      if (ch.group) counts.set(ch.group, (counts.get(ch.group) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([group]) => group);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getVisibleChannels, refreshKey]);
 
   const favoriteCount = getFavoriteChannels().length;
 
@@ -249,6 +276,34 @@ export function ChannelList() {
             Favorites {favoriteCount > 0 && `(${favoriteCount})`}
           </button>
         </div>
+
+        {/* Category chips */}
+        {categoryChips.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent pb-1 -mb-1">
+            <button
+              onClick={() => setSelectedGroup(null)}
+              className={cn(
+                "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors min-h-[32px]",
+                !selectedGroup ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80",
+              )}
+            >
+              All categories
+            </button>
+            {categoryChips.map((group) => (
+              <button
+                key={group}
+                onClick={() => setSelectedGroup(selectedGroup === group ? null : group)}
+                className={cn(
+                  "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors min-h-[32px] max-w-[10rem] truncate",
+                  selectedGroup === group ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80",
+                )}
+                title={group}
+              >
+                {group}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* New Folder Creation */}
         {isCreatingFolder && (

@@ -1,21 +1,26 @@
 "use client";
 
-import { Tv, Search, Settings } from "lucide-react";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { Tv, Search, Settings, CalendarDays } from "lucide-react";
+import { useState, lazy, Suspense } from "react";
 import { SettingsModal } from "@/components/settings/settings-modal";
 import { useTVMode } from "@/lib/hooks/use-tv-mode";
 import { useAndroidBackButton } from "@/lib/hooks/use-back-button";
 
+const EPGGrid = lazy(() => import("@/components/epg/epg-grid").then((m) => ({ default: m.EPGGrid })));
+
 export function MainLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const isTVMode = useTVMode();
 
-  // Android hardware/remote Back: close settings first, then default chain
+  // Android hardware/remote Back: close overlays first, then default chain
   useAndroidBackButton(() => {
     if (settingsOpen) {
       setSettingsOpen(false);
+      return true;
+    }
+    if (guideOpen) {
+      setGuideOpen(false);
       return true;
     }
     return false;
@@ -32,15 +37,25 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             <span className="text-lg">OpenIPTV</span>
           </div>
 
-          {/* Right: Config */}
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 min-h-[44px] hover:bg-accent active:bg-accent active:scale-[0.97] rounded-lg transition-colors"
-            title="Configuration"
-          >
-            <Settings className="h-5 w-5" />
-            <span className="font-medium hidden sm:inline">Config</span>
-          </button>
+          {/* Right: Guide + Config */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setGuideOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 min-h-[44px] hover:bg-accent active:bg-accent active:scale-[0.97] rounded-lg transition-colors"
+              title="TV Guide"
+            >
+              <CalendarDays className="h-5 w-5" />
+              <span className="font-medium hidden sm:inline">Guide</span>
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 min-h-[44px] hover:bg-accent active:bg-accent active:scale-[0.97] rounded-lg transition-colors"
+              title="Configuration"
+            >
+              <Settings className="h-5 w-5" />
+              <span className="font-medium hidden sm:inline">Config</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -56,6 +71,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             <Tv className="h-5 w-5 text-primary" />
             <span className="text-sm">OpenIPTV</span>
           </div>
+          <button
+            onClick={() => setGuideOpen(true)}
+            className="flex flex-col items-center justify-center gap-0.5 px-4 min-h-[44px] min-w-[64px] rounded-lg hover:bg-accent active:bg-accent active:scale-[0.97] transition-colors"
+            title="TV Guide"
+          >
+            <CalendarDays className="h-5 w-5" />
+            <span className="text-[10px] text-muted-foreground">Guide</span>
+          </button>
           <button
             onClick={() => {
               const search = document.getElementById("channel-search");
@@ -90,6 +113,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
       {/* Settings Modal */}
       <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* TV Guide */}
+      {guideOpen && (
+        <Suspense fallback={null}>
+          <EPGGrid isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

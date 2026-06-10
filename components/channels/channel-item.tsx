@@ -10,6 +10,8 @@ import { useRecordingCount } from "@/lib/store/recordings-store";
 import { ContextMenu } from "./context-menu";
 import { useTVMode } from "@/lib/hooks/use-tv-mode";
 import { useLongPress } from "@/lib/hooks/use-long-press";
+import { useNowNext } from "@/lib/hooks/use-now-next";
+import { epgManager } from "@/lib/epg/epg-manager";
 import { cn, vibrate } from "@/lib/utils";
 import Image from "next/image";
 
@@ -34,6 +36,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
   const isTVMode = useTVMode();
   const enterTimerRef = useRef<NodeJS.Timeout | null>(null);
   const longPressFiredRef = useRef(false);
+  const { current: nowPlaying } = useNowNext(channel.tvgName || channel.name);
 
   const handleClick = useCallback(() => {
     if (!isRenaming) {
@@ -365,10 +368,25 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
               </span>
             )}
           </div>
-          {channel.group && (
-            <div className="text-xs text-muted-foreground mt-0.5 truncate" title={channel.group}>
-              {channel.group}
+          {/* EPG now playing (when available) takes priority over the static group label */}
+          {nowPlaying ? (
+            <div className="mt-0.5 min-w-0">
+              <div className="text-xs text-muted-foreground truncate" title={nowPlaying.title}>
+                {nowPlaying.title}
+              </div>
+              <div className="mt-1 h-0.5 w-full bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary/70 rounded-full"
+                  style={{ width: `${epgManager.getProgramProgress(nowPlaying)}%` }}
+                />
+              </div>
             </div>
+          ) : (
+            channel.group && (
+              <div className="text-xs text-muted-foreground mt-0.5 truncate" title={channel.group}>
+                {channel.group}
+              </div>
+            )
           )}
         </div>
 

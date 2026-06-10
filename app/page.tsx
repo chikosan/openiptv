@@ -8,6 +8,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { usePlaylistStore } from "@/lib/store/playlist-store";
 import { epgManager } from "@/lib/epg/epg-manager";
 import { ContinueWatching } from "@/components/channels/continue-watching";
+import { FavoritesRow } from "@/components/channels/favorites-row";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { usePreferencesStore } from "@/lib/store/preferences-store";
 import { useTVMode } from "@/lib/hooks/use-tv-mode";
@@ -15,6 +16,7 @@ import { useRecordingsStore } from "@/lib/store/recordings-store";
 import { VideoPlayerSkeleton, ChannelListSkeleton } from "@/components/ui/skeleton";
 import { CatchupPanel } from "@/components/epg/catchup-panel";
 import { ChannelNumberOverlay } from "@/components/player/channel-number-overlay";
+import { useEPGStore } from "@/lib/store/epg-store";
 import { catchupManager } from "@/lib/catchup/catchup-manager";
 import { EPGProgram } from "@/lib/epg/types";
 
@@ -33,6 +35,7 @@ export default function Home() {
   const [showCatchup, setShowCatchup] = useState(false);
   const [catchupUrl, setCatchupUrl] = useState<string | null>(null);
   const [numberBuffer, setNumberBuffer] = useState("");
+  const epgSources = useEPGStore((s) => s.sources);
 
   useEffect(() => {
     initialize();
@@ -85,17 +88,12 @@ export default function Home() {
   // Load EPG data when channels are available
   useEffect(() => {
     if (playlists.length > 0) {
-      // Load saved EPG URL from localStorage
-      const savedEpgUrl = localStorage.getItem("epg_url");
-      if (savedEpgUrl) {
-        epgManager.setEPGSource(savedEpgUrl);
-      }
-
+      epgManager.setEPGSources(epgSources);
       const channels = getVisibleChannels();
       const channelNames = channels.map((c) => c.name);
       epgManager.loadEPG(channelNames);
     }
-  }, [playlists, getVisibleChannels]);
+  }, [playlists, getVisibleChannels, epgSources]);
 
   // Channel navigation
   const navigateChannel = useCallback(
@@ -199,8 +197,13 @@ export default function Home() {
       <div className="flex flex-col lg:flex-row h-full overflow-hidden">
         {/* Main Content Area */}
         <div className="flex-none max-h-[60dvh] lg:max-h-none lg:flex-1 flex flex-col gap-2 md:gap-4 p-2 md:p-4 overflow-y-auto">
-          {/* Continue Watching Section (Netflix-style) */}
-          {!currentChannel && <ContinueWatching onChannelSelect={setCurrentChannel} className="flex-shrink-0" />}
+          {/* Quick rows (Netflix-style) */}
+          {!currentChannel && (
+            <>
+              <ContinueWatching onChannelSelect={setCurrentChannel} className="flex-shrink-0" />
+              <FavoritesRow onChannelSelect={setCurrentChannel} className="flex-shrink-0" />
+            </>
+          )}
 
           {/* Video Player */}
           <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex-shrink-0">
