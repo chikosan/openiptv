@@ -393,11 +393,19 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
               <div className="text-xs text-muted-foreground truncate" title={nowPlaying.title}>
                 {nowPlaying.title}
               </div>
-              <div className="mt-1 h-0.5 w-full bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary/70 rounded-full"
-                  style={{ width: `${epgManager.getProgramProgress(nowPlaying)}%` }}
-                />
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground tabular-nums flex-shrink-0">
+                  {nowPlaying.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
+                <div className="flex-1 h-0.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary/70 rounded-full"
+                    style={{ width: `${epgManager.getProgramProgress(nowPlaying)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground tabular-nums flex-shrink-0">
+                  {nowPlaying.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
               </div>
             </div>
           ) : (

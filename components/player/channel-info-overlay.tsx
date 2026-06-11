@@ -8,20 +8,44 @@ import { EPGProgram } from "@/lib/epg/types";
 import { Star, Globe, Tv } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import type Hls from "hls.js";
 
 interface ChannelInfoOverlayProps {
   channel: Channel;
   isVisible: boolean;
   onHide: () => void;
+  videoElement?: HTMLVideoElement | null;
+  hls?: Hls | null;
 }
 
-export function ChannelInfoOverlay({ channel, isVisible, onHide }: ChannelInfoOverlayProps) {
+interface StreamBadges {
+  resolution: string | null;
+  videoCodec: string | null;
+  audioCodec: string | null;
+}
+
+// "avc1.64001f" → "H.264" etc.
+function friendlyCodec(codec: string | undefined): string | null {
+  if (!codec) return null;
+  if (codec.startsWith("avc")) return "H.264";
+  if (codec.startsWith("hvc") || codec.startsWith("hev")) return "HEVC";
+  if (codec.startsWith("av01")) return "AV1";
+  if (codec.startsWith("mp4a")) return "AAC";
+  if (codec.startsWith("ac-3")) return "AC3";
+  if (codec.startsWith("ec-3")) return "EAC3";
+  return codec.split(".")[0].toUpperCase();
+}
+
+const timeFmt = (d: Date) => d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+export function ChannelInfoOverlay({ channel, isVisible, onHide, videoElement, hls }: ChannelInfoOverlayProps) {
   const { player } = usePreferencesStore();
   const [show, setShow] = useState(false);
   const [nowNext, setNowNext] = useState<{ current: EPGProgram | null; next: EPGProgram | null }>({
     current: null,
     next: null,
   });
+  const [badges, setBadges] = useState<StreamBadges>({ resolution: null, videoCodec: null, audioCodec: null });
 
   // Refresh EPG now/next whenever the banner appears for a channel
   useEffect(() => {
@@ -29,6 +53,23 @@ export function ChannelInfoOverlay({ channel, isVisible, onHide }: ChannelInfoOv
       setNowNext(epgManager.getCurrentProgram(channel.name));
     }
   }, [isVisible, channel.name]);
+
+  // Stream badges (resolution/codecs) - retry briefly since metadata arrives async
+  useEffect(() => {
+    if (!isVisible) return;
+    const update = () => {
+      const level = hls && hls.currentLevel >= 0 ? hls.levels[hls.currentLevel] : null;
+      setBadges({
+        resolution:
+          videoElement && videoElement.videoWidth > 0 ? `${videoElement.videoWidth}×${videoElement.videoHeight}` : null,
+        videoCodec: friendlyCodec(level?.videoCodec),
+        audioCodec: friendlyCodec(level?.audioCodec),
+      });
+    };
+    update();
+    const interval = setInterval(update, 1500);
+    return () => clearInterval(interval);
+  }, [isVisible, videoElement, hls, channel.id]);
 
   useEffect(() => {
     if (isVisible && player.showChannelInfo) {
@@ -96,7 +137,16 @@ export function ChannelInfoOverlay({ channel, isVisible, onHide }: ChannelInfoOv
           {/* EPG now/next */}
           {nowNext.current && (
             <div className="mt-2 min-w-0">
-              <p className="text-sm text-white font-medium truncate">Now: {nowNext.current.title}</p>
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-sm text-white font-medium truncate">Now: {nowNext.current.title}</p>
+                <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-primary/30 text-primary-foreground text-xs font-mono tabular-nums">
+                  {timeFmt(nowNext.current.start)}
+                </span>
+                <span className="text-white/50 text-xs">–</span>
+                <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-primary/30 text-primary-foreground text-xs font-mono tabular-nums">
+                  {timeFmt(nowNext.current.end)}
+                </span>
+              </div>
               <div className="mt-1 h-1 w-full max-w-xs bg-white/20 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-primary rounded-full"
@@ -107,13 +157,28 @@ export function ChannelInfoOverlay({ channel, isVisible, onHide }: ChannelInfoOv
             </div>
           )}
 
-          {/* Now Playing indicator */}
-          <div className="mt-2 flex items-center gap-2">
+          {/* Now Playing indicator + stream badges */}
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
             </span>
             <span className="text-xs text-white/60 uppercase tracking-wider">Live</span>
+            {badges.resolution && (
+              <span className="px-1.5 py-0.5 rounded bg-white/10 text-white/70 text-[10px] font-mono">
+                {badges.resolution}
+              </span>
+            )}
+            {badges.videoCodec && (
+              <span className="px-1.5 py-0.5 rounded bg-white/10 text-white/70 text-[10px] font-mono">
+                {badges.videoCodec}
+              </span>
+            )}
+            {badges.audioCodec && (
+              <span className="px-1.5 py-0.5 rounded bg-white/10 text-white/70 text-[10px] font-mono">
+                {badges.audioCodec}
+              </span>
+            )}
           </div>
         </div>
       </div>

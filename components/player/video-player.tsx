@@ -26,7 +26,7 @@ import { TrackSelector } from "./track-selector";
 import { StreamInfoOverlay } from "./stream-info-overlay";
 import { useToast } from "@/components/ui/toast";
 import { acquireWakeLock, releaseWakeLock } from "@/lib/wake-lock";
-import { Volume2, VolumeX, Activity } from "lucide-react";
+import { Volume2, VolumeX, Activity, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn, vibrate } from "@/lib/utils";
 
 interface VideoPlayerProps {
@@ -390,44 +390,48 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error("HLS.js error:", data);
+        // Non-fatal errors (transient frag drops etc.) are routine for IPTV -
+        // warn instead of error so they don't trip the dev overlay
+        if (!data.fatal) {
+          console.warn(`HLS ${data.type}: ${data.details} (non-fatal)`);
+          return;
+        }
+        console.error(`HLS fatal ${data.type}: ${data.details}`);
 
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              // Exponential backoff: 1s, 2s, 4s — then surface a manual Retry
-              if (networkRetries < 3) {
-                const delay = 1000 * Math.pow(2, networkRetries);
-                networkRetries += 1;
-                setReconnectAttempt(networkRetries);
-                setError("");
-                if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-                retryTimerRef.current = setTimeout(() => {
-                  if (hlsRef.current === hls) hls.startLoad();
-                }, delay);
-              } else {
-                setReconnectAttempt(0);
-                setError("Network error — stream unreachable");
-                setIsLoading(false);
-              }
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              if (mediaRetries < 2) {
-                mediaRetries += 1;
-                setError("");
-                hls.recoverMediaError();
-              } else {
-                setError(`Playback failed: ${data.details}`);
-                setIsLoading(false);
-              }
-              break;
-            default:
-              console.error("Fatal error, cannot recover");
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            // Exponential backoff: 1s, 2s, 4s — then surface a manual Retry
+            if (networkRetries < 3) {
+              const delay = 1000 * Math.pow(2, networkRetries);
+              networkRetries += 1;
+              setReconnectAttempt(networkRetries);
+              setError("");
+              if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+              retryTimerRef.current = setTimeout(() => {
+                if (hlsRef.current === hls) hls.startLoad();
+              }, delay);
+            } else {
+              setReconnectAttempt(0);
+              setError("Network error — stream unreachable");
+              setIsLoading(false);
+            }
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            if (mediaRetries < 2) {
+              mediaRetries += 1;
+              setError("");
+              hls.recoverMediaError();
+            } else {
               setError(`Playback failed: ${data.details}`);
               setIsLoading(false);
-              hls.destroy();
-              break;
-          }
+            }
+            break;
+          default:
+            console.error("Fatal error, cannot recover");
+            setError(`Playback failed: ${data.details}`);
+            setIsLoading(false);
+            hls.destroy();
+            break;
         }
       });
 
@@ -590,7 +594,13 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
       <div ref={videoRef} className="w-full h-full" />
 
       {/* Channel Info Overlay (Netflix-style) */}
-      <ChannelInfoOverlay channel={channel} isVisible={showChannelInfo} onHide={() => setShowChannelInfo(false)} />
+      <ChannelInfoOverlay
+        channel={channel}
+        isVisible={showChannelInfo}
+        onHide={() => setShowChannelInfo(false)}
+        videoElement={videoElementRef.current}
+        hls={hlsInstance}
+      />
 
       {/* Volume Indicator (Netflix-style) */}
       {showVolumeIndicator && (
@@ -622,6 +632,25 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
           controlsVisible ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
         )}
       >
+        {onPrevChannel && (
+          <button
+            onClick={onPrevChannel}
+            className="p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full transition-all hover:bg-accent"
+            title="Previous channel"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        )}
+        {onNextChannel && (
+          <button
+            onClick={onNextChannel}
+            className="p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full transition-all hover:bg-accent"
+            title="Next channel"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        )}
+        <div className="w-px h-5 bg-white/20" />
         <RecordButton channel={channel} videoElement={videoElementRef.current} />
         <QualitySelector player={playerRef.current} />
         <TrackSelector hls={hlsInstance} />

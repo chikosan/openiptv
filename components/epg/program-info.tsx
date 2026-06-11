@@ -128,6 +128,9 @@ export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShow
                 </span>
               </div>
               <p className="font-semibold text-sm leading-tight">{currentProgram.title}</p>
+              {currentProgram.description && (
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{currentProgram.description}</p>
+              )}
               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                 <span>
                   {currentProgram.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} -

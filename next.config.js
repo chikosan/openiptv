@@ -35,4 +35,7 @@ const nextConfig = {
   },
 };
 
-module.exports = withPWA(nextConfig);
+// Next 16: dev runs on Turbopack (the PWA plugin is webpack-only, and is
+// disabled in dev anyway); production builds use `next build --webpack`
+// so workbox can generate the service worker.
+module.exports = process.env.NODE_ENV === "development" ? nextConfig : withPWA(nextConfig);

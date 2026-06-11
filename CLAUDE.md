@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev       # Start dev server at http://localhost:3000 (PWA disabled in dev)
-npm run build     # Production build — runs TypeScript check + ESLint before output
-npm run lint      # ESLint via next lint (zero warnings/errors expected)
+npm run dev       # Dev server at http://localhost:3000 (Turbopack; PWA disabled in dev)
+npm run build     # Production build (webpack — required by the PWA plugin; Turbopack won't generate the SW)
+npm run lint      # ESLint 9 flat config (eslint.config.mjs); zero errors expected, react-hooks v7 strict rules are warnings
 ```
 
 There are no tests in this project.
