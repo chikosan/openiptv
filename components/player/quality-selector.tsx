@@ -1,80 +1,118 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Settings } from "lucide-react"
-import videojs from "video.js"
-import { cn } from "@/lib/utils"
+import { useState, useEffect } from "react";
+import { Settings } from "lucide-react";
+import videojs from "video.js";
+import { usePreferencesStore } from "@/lib/store/preferences-store";
+import { cn } from "@/lib/utils";
 
-type QualityLevel = { height: number; enabled: boolean }
+type QualityLevel = { height: number; enabled: boolean };
 type VjsPlayer = ReturnType<typeof videojs> & {
-  qualityLevels?: () => QualityLevel[] & { length: number }
-}
+  qualityLevels?: () => QualityLevel[] & { length: number };
+};
 
 interface QualitySelectorProps {
-  player: VjsPlayer | null
-  className?: string
+  player: VjsPlayer | null;
+  className?: string;
+}
+
+// Map a concrete pixel height onto the persisted quality preference buckets
+function heightToPreference(height: number): "high" | "medium" | "low" {
+  if (height >= 720) return "high";
+  if (height >= 480) return "medium";
+  return "low";
 }
 
 export function QualitySelector({ player, className }: QualitySelectorProps) {
-  const [qualities, setQualities] = useState<string[]>([])
-  const [currentQuality, setCurrentQuality] = useState<string>("auto")
-  const [showMenu, setShowMenu] = useState(false)
+  const [qualities, setQualities] = useState<string[]>([]);
+  const [currentQuality, setCurrentQuality] = useState<string>("auto");
+  const [showMenu, setShowMenu] = useState(false);
+  const { setPreferredQuality } = usePreferencesStore();
 
   useEffect(() => {
-    if (!player) return
+    if (!player) return;
 
     const updateQualities = () => {
       try {
-        const levels = player.qualityLevels?.()
+        const levels = player.qualityLevels?.();
         if (levels && levels.length > 0) {
-          const qualityList = ["auto"]
+          const qualityList = ["auto"];
           for (let i = 0; i < levels.length; i++) {
-            const level = levels[i]
-            qualityList.push(`${level.height}p`)
+            const level = levels[i];
+            qualityList.push(`${level.height}p`);
           }
-          setQualities(qualityList)
+          setQualities(qualityList);
         }
       } catch (error) {
-        console.error("Quality detection error:", error)
+        console.error("Quality detection error:", error);
       }
-    }
+    };
+
+    // Re-apply the persisted quality preference once levels are known
+    const applyPreference = () => {
+      const pref = usePreferencesStore.getState().player.preferredQuality;
+      if (pref === "auto") return;
+      try {
+        const levels = player.qualityLevels?.();
+        if (!levels || levels.length === 0) return;
+        const heights = [];
+        for (let i = 0; i < levels.length; i++) heights.push(levels[i].height);
+        const sorted = [...heights].sort((a, b) => b - a);
+        const target =
+          pref === "high"
+            ? sorted[0]
+            : pref === "low"
+              ? sorted[sorted.length - 1]
+              : sorted[Math.floor(sorted.length / 2)];
+        for (let i = 0; i < levels.length; i++) {
+          levels[i].enabled = levels[i].height === target;
+        }
+        setCurrentQuality(`${target}p`);
+      } catch {
+        // levels not ready yet
+      }
+    };
 
     player.ready(() => {
-      updateQualities()
-    })
+      updateQualities();
+      applyPreference();
+    });
 
-    player.on("loadedmetadata", updateQualities)
+    player.on("loadedmetadata", updateQualities);
+    player.on("loadedmetadata", applyPreference);
 
     return () => {
-      player.off("loadedmetadata", updateQualities)
-    }
-  }, [player])
+      player.off("loadedmetadata", updateQualities);
+      player.off("loadedmetadata", applyPreference);
+    };
+  }, [player]);
 
   const handleQualityChange = (quality: string) => {
     try {
-      const levels = player?.qualityLevels?.()
-      if (!levels) return
+      const levels = player?.qualityLevels?.();
+      if (!levels) return;
 
       if (quality === "auto") {
         for (let i = 0; i < levels.length; i++) {
-          levels[i].enabled = true
+          levels[i].enabled = true;
         }
       } else {
-        const targetHeight = parseInt(quality)
+        const targetHeight = parseInt(quality);
         for (let i = 0; i < levels.length; i++) {
-          levels[i].enabled = levels[i].height === targetHeight
+          levels[i].enabled = levels[i].height === targetHeight;
         }
       }
 
-      setCurrentQuality(quality)
-      setShowMenu(false)
+      setCurrentQuality(quality);
+      setPreferredQuality(quality === "auto" ? "auto" : heightToPreference(parseInt(quality)));
+      setShowMenu(false);
     } catch (error) {
-      console.error("Quality change error:", error)
+      console.error("Quality change error:", error);
     }
-  }
+  };
 
   if (qualities.length <= 1) {
-    return null
+    return null;
   }
 
   return (
@@ -82,9 +120,9 @@ export function QualitySelector({ player, className }: QualitySelectorProps) {
       <button
         onClick={() => setShowMenu(!showMenu)}
         className={cn(
-          "p-2 rounded-full transition-all hover:bg-accent",
+          "p-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-full transition-all hover:bg-accent",
           showMenu && "bg-accent",
-          className
+          className,
         )}
         title="Quality"
       >
@@ -93,16 +131,14 @@ export function QualitySelector({ player, className }: QualitySelectorProps) {
 
       {showMenu && (
         <div className="absolute bottom-full right-0 mb-2 bg-popover border rounded-md shadow-lg overflow-hidden z-50 min-w-32">
-          <div className="p-2 text-xs font-semibold text-muted-foreground border-b">
-            Quality
-          </div>
+          <div className="p-2 text-xs font-semibold text-muted-foreground border-b">Quality</div>
           {qualities.map((quality) => (
             <button
               key={quality}
               onClick={() => handleQualityChange(quality)}
               className={cn(
                 "w-full px-3 py-2 text-sm text-left hover:bg-accent transition-colors",
-                currentQuality === quality && "bg-accent text-accent-foreground font-medium"
+                currentQuality === quality && "bg-accent text-accent-foreground font-medium",
               )}
             >
               {quality === "auto" ? "Auto" : quality}
@@ -112,5 +148,5 @@ export function QualitySelector({ player, className }: QualitySelectorProps) {
         </div>
       )}
     </div>
-  )
+  );
 }

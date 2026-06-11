@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, memo, useCallback } from "react";
+import { useState, memo, useCallback, useRef } from "react";
 import { Star, Play, Trash2, Radio, History, Video } from "lucide-react";
 import { Channel } from "@/lib/types";
 import { usePlaylistStore } from "@/lib/store/playlist-store";
@@ -8,7 +8,12 @@ import { useChannelManagementStore } from "@/lib/store/channel-management-store"
 import { usePreferencesStore } from "@/lib/store/preferences-store";
 import { useRecordingCount } from "@/lib/store/recordings-store";
 import { ContextMenu } from "./context-menu";
-import { cn } from "@/lib/utils";
+import { useTVMode } from "@/lib/hooks/use-tv-mode";
+import { useLongPress } from "@/lib/hooks/use-long-press";
+import { useNowNext } from "@/lib/hooks/use-now-next";
+import { epgManager } from "@/lib/epg/epg-manager";
+import { useToast } from "@/components/ui/toast";
+import { cn, vibrate } from "@/lib/utils";
 import Image from "next/image";
 
 interface ChannelItemProps {
@@ -19,7 +24,8 @@ interface ChannelItemProps {
 
 export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActive }: ChannelItemProps) {
   const { setCurrentChannel, toggleFavorite } = usePlaylistStore();
-  const { deleteChannel } = useChannelManagementStore();
+  const { deleteChannel, restoreChannel } = useChannelManagementStore();
+  const { addToast } = useToast();
   const { ui } = usePreferencesStore();
   const showNumbers = ui.showChannelNumbers;
   const recordingCount = useRecordingCount(channel.id);
@@ -29,17 +35,59 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
+  const isTVMode = useTVMode();
+  const enterTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressFiredRef = useRef(false);
+  const { current: nowPlaying } = useNowNext(channel.tvgName || channel.name);
+
   const handleClick = useCallback(() => {
     if (!isRenaming) {
       setCurrentChannel(channel);
     }
   }, [isRenaming, channel, setCurrentChannel]);
 
+  // TV remote: short OK press selects, holding OK ~600ms opens the context menu
+  const handleItemKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      if (!isTVMode) {
+        handleClick();
+        return;
+      }
+      e.preventDefault();
+      if (e.repeat) return;
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      longPressFiredRef.current = false;
+      enterTimerRef.current = setTimeout(() => {
+        longPressFiredRef.current = true;
+        setContextMenu({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+      }, 600);
+    },
+    [isTVMode, handleClick],
+  );
+
+  const handleItemKeyUp = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key !== "Enter" || !isTVMode) return;
+      if (enterTimerRef.current) {
+        clearTimeout(enterTimerRef.current);
+        enterTimerRef.current = null;
+      }
+      if (!longPressFiredRef.current) {
+        handleClick();
+      }
+    },
+    [isTVMode, handleClick],
+  );
+
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({ x: e.clientX, y: e.clientY });
   }, []);
+
+  // Touch long-press opens the same menu (renders as a bottom sheet on phones)
+  const longPress = useLongPress((point) => setContextMenu({ x: point.x, y: point.y }));
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -58,6 +106,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
   const handleFavoriteClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      vibrate(10);
       toggleFavorite(channel.id);
     },
     [channel.id, toggleFavorite],
@@ -66,17 +115,22 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
   const handleDeleteClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (confirm(`Delete "${channel.name}"?\n\nYou can restore it from Settings → Channels → Trash`)) {
-        deleteChannel({
-          id: channel.id,
-          name: channel.name,
-          url: channel.url,
-          logo: channel.logo,
-          group: channel.group,
-        });
-      }
+      deleteChannel({
+        id: channel.id,
+        name: channel.name,
+        url: channel.url,
+        logo: channel.logo,
+        group: channel.group,
+      });
+      addToast(`Deleted "${channel.name}"`, "info", 5000, {
+        label: "Undo",
+        onClick: () => {
+          restoreChannel(channel.id);
+          window.dispatchEvent(new CustomEvent("channelDeleted"));
+        },
+      });
     },
-    [channel, deleteChannel],
+    [channel, deleteChannel, restoreChannel, addToast],
   );
 
   if (viewMode === "grid") {
@@ -86,16 +140,22 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           role="button"
           tabIndex={0}
           onClick={handleClick}
-          onKeyDown={(e) => e.key === "Enter" && handleClick()}
+          onKeyDown={handleItemKeyDown}
+          onKeyUp={handleItemKeyUp}
           onContextMenu={handleContextMenu}
+          onTouchStart={longPress.onTouchStart}
+          onTouchMove={longPress.onTouchMove}
+          onTouchEnd={longPress.onTouchEnd}
+          onTouchCancel={longPress.onTouchCancel}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
           draggable
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
           className={cn(
-            "relative group p-3 rounded-xl border transition-all duration-300 cursor-pointer",
+            "cv-auto-card relative group p-3 rounded-xl border transition-all duration-300 cursor-pointer",
             "hover:border-primary hover:shadow-xl hover:shadow-primary/20 hover:scale-105 hover:-translate-y-1",
+            "active:scale-[0.98]",
             isActive
               ? "border-primary bg-gradient-to-br from-primary/20 to-primary/5 ring-2 ring-primary/50"
               : "bg-card hover:bg-card/80",
@@ -120,6 +180,9 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
                 fill
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                 className={cn("object-contain p-2 transition-transform duration-300", isHovered && "scale-110")}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
               />
             ) : (
               <Play
@@ -179,17 +242,18 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
             </div>
           )}
 
-          {/* Action Buttons - Show on hover */}
+          {/* Action Buttons - always visible on touch, hover-revealed on desktop */}
           <div
             className={cn(
               "absolute bottom-2 right-2 flex gap-1 transition-all duration-300 tv-focus-reveal",
-              isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
+              "opacity-100 translate-y-0 lg:opacity-0 lg:translate-y-2",
+              isHovered && "lg:opacity-100 lg:translate-y-0",
             )}
           >
             <button
               onClick={handleFavoriteClick}
               className={cn(
-                "p-2 rounded-full backdrop-blur-md transition-all duration-200",
+                "p-2 min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0 inline-flex items-center justify-center rounded-full backdrop-blur-md transition-all duration-200",
                 channel.isFavorite ? "bg-yellow-500/30 hover:bg-yellow-500/50" : "bg-black/50 hover:bg-black/70",
               )}
               title={channel.isFavorite ? "Remove from favorites" : "Add to favorites"}
@@ -198,7 +262,7 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
             </button>
             <button
               onClick={handleDeleteClick}
-              className="p-2 rounded-full bg-black/50 hover:bg-destructive/80 backdrop-blur-md transition-all duration-200"
+              className="p-2 min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0 inline-flex items-center justify-center rounded-full bg-black/50 hover:bg-destructive/80 backdrop-blur-md transition-all duration-200"
               title="Delete channel"
             >
               <Trash2 className="h-4 w-4 text-white" />
@@ -224,16 +288,22 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
         role="button"
         tabIndex={0}
         onClick={handleClick}
-        onKeyDown={(e) => e.key === "Enter" && handleClick()}
+        onKeyDown={handleItemKeyDown}
+        onKeyUp={handleItemKeyUp}
         onContextMenu={handleContextMenu}
+        onTouchStart={longPress.onTouchStart}
+        onTouchMove={longPress.onTouchMove}
+        onTouchEnd={longPress.onTouchEnd}
+        onTouchCancel={longPress.onTouchCancel}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         draggable
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         className={cn(
-          "w-full group flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 cursor-pointer relative",
+          "cv-auto w-full group flex items-center gap-3 p-2.5 rounded-lg transition-all duration-200 cursor-pointer relative",
           "hover:bg-gradient-to-r hover:from-primary/20 hover:to-transparent hover:scale-[1.02] hover:shadow-lg hover:shadow-primary/10",
+          "active:scale-[0.99] active:bg-primary/10",
           isActive && "bg-gradient-to-r from-primary/30 to-primary/10 border-l-4 border-primary",
           isDragging && "opacity-50 scale-95",
         )}
@@ -261,7 +331,16 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           )}
         >
           {channel.logo ? (
-            <Image src={channel.logo} alt={channel.name} fill sizes="56px" className="object-contain p-1" />
+            <Image
+              src={channel.logo}
+              alt={channel.name}
+              fill
+              sizes="56px"
+              className="object-contain p-1"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
           ) : (
             <Play className="h-4 w-4 text-muted-foreground" />
           )}
@@ -308,24 +387,40 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
               </span>
             )}
           </div>
-          {channel.group && (
-            <div className="text-xs text-muted-foreground mt-0.5 truncate" title={channel.group}>
-              {channel.group}
+          {/* EPG now playing (when available) takes priority over the static group label */}
+          {nowPlaying ? (
+            <div className="mt-0.5 min-w-0">
+              <div className="text-xs text-muted-foreground truncate" title={nowPlaying.title}>
+                {nowPlaying.title}
+              </div>
+              <div className="mt-1 h-0.5 w-full bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary/70 rounded-full"
+                  style={{ width: `${epgManager.getProgramProgress(nowPlaying)}%` }}
+                />
+              </div>
             </div>
+          ) : (
+            channel.group && (
+              <div className="text-xs text-muted-foreground mt-0.5 truncate" title={channel.group}>
+                {channel.group}
+              </div>
+            )
           )}
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons - always visible on touch, hover-revealed on desktop */}
         <div
           className={cn(
             "flex items-center gap-0.5 flex-shrink-0 transition-opacity duration-200 tv-focus-reveal",
-            isHovered ? "opacity-100" : "opacity-0",
+            "opacity-100 lg:opacity-0",
+            isHovered && "lg:opacity-100",
           )}
         >
           <button
             onClick={handleFavoriteClick}
             className={cn(
-              "p-1.5 rounded-full transition-all duration-200",
+              "p-1.5 min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0 inline-flex items-center justify-center rounded-full transition-all duration-200",
               channel.isFavorite ? "bg-yellow-500/20 hover:bg-yellow-500/30" : "hover:bg-accent",
             )}
             title={channel.isFavorite ? "Remove from favorites" : "Add to favorites"}
@@ -341,16 +436,16 @@ export const ChannelItem = memo(function ChannelItem({ channel, viewMode, isActi
           </button>
           <button
             onClick={handleDeleteClick}
-            className="p-1.5 rounded-full hover:bg-destructive/20 transition-all duration-200"
+            className="p-1.5 min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0 inline-flex items-center justify-center rounded-full hover:bg-destructive/20 transition-all duration-200"
             title="Delete channel"
           >
             <Trash2 className="h-4 w-4 text-destructive/70 hover:text-destructive hover:scale-110 transition-all duration-200" />
           </button>
         </div>
 
-        {/* Favorite indicator (always visible if favorited) */}
+        {/* Favorite indicator (desktop only - the action button is always visible on touch) */}
         {channel.isFavorite && !isHovered && (
-          <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500 flex-shrink-0" />
+          <Star className="hidden lg:block h-3.5 w-3.5 fill-yellow-500 text-yellow-500 flex-shrink-0" />
         )}
       </div>
       {contextMenu && (

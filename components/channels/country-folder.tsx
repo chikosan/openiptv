@@ -48,9 +48,9 @@ export function CountryFolder({
 
         <span className="text-xl">{country.flag}</span>
 
-        <div className="flex-1 text-left">
-          <span className="font-semibold">{country.name}</span>
-          <span className="text-sm text-muted-foreground ml-2">({channels.length})</span>
+        <div className="flex-1 min-w-0 text-left flex items-baseline gap-2">
+          <span className="font-semibold truncate">{country.name}</span>
+          <span className="text-sm text-muted-foreground flex-shrink-0">({channels.length})</span>
         </div>
       </button>
 

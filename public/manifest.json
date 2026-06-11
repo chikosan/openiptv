@@ -9,16 +9,28 @@
   "orientation": "any",
   "icons": [
     {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
-    },
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
     }
   ],
   "shortcuts": [
@@ -36,5 +48,13 @@
     }
   ],
   "categories": ["entertainment", "video"],
-  "screenshots": []
+  "screenshots": [
+    {
+      "src": "/screenshots/screenshot-welcome.png",
+      "sizes": "1920x968",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "OpenIPTV welcome screen"
+    }
+  ]
 }

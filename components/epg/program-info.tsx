@@ -1,63 +1,82 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useCallback } from "react"
-import { Clock, Info, Tv, Radio, Rewind, History } from "lucide-react"
-import { Channel } from "@/lib/types"
-import { epgManager } from "@/lib/epg/epg-manager"
-import { catchupManager } from "@/lib/catchup/catchup-manager"
-import { EPGProgram } from "@/lib/epg/types"
-import { cn } from "@/lib/utils"
+import { useEffect, useState, useCallback } from "react";
+import { Clock, Info, Tv, Radio, Rewind, History, Bell, BellRing } from "lucide-react";
+import { Channel } from "@/lib/types";
+import { epgManager } from "@/lib/epg/epg-manager";
+import { catchupManager } from "@/lib/catchup/catchup-manager";
+import { EPGProgram } from "@/lib/epg/types";
+import { useRemindersStore } from "@/lib/store/reminders-store";
+import { cn } from "@/lib/utils";
 
 interface ProgramInfoProps {
-  channel: Channel
-  compact?: boolean
-  onWatchFromStart?: (url: string, program: EPGProgram) => void
-  onShowCatchup?: () => void
+  channel: Channel;
+  compact?: boolean;
+  onWatchFromStart?: (url: string, program: EPGProgram) => void;
+  onShowCatchup?: () => void;
 }
 
 export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShowCatchup }: ProgramInfoProps) {
-  const [currentProgram, setCurrentProgram] = useState<EPGProgram | null>(null)
-  const [nextProgram, setNextProgram] = useState<EPGProgram | null>(null)
-  const [progress, setProgress] = useState(0)
-  const [timeRemaining, setTimeRemaining] = useState("")
+  const [currentProgram, setCurrentProgram] = useState<EPGProgram | null>(null);
+  const [nextProgram, setNextProgram] = useState<EPGProgram | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState("");
 
-  const hasCatchup = catchupManager.hasCatchup(channel)
-  const catchupDays = catchupManager.getCatchupDays(channel)
+  const hasCatchup = catchupManager.hasCatchup(channel);
+  const { addReminder, removeReminder, hasReminder } = useRemindersStore();
+
+  const reminderId = nextProgram ? `${nextProgram.id}-${nextProgram.start.toISOString()}` : null;
+  const reminderSet = reminderId ? hasReminder(reminderId) : false;
+
+  const toggleReminder = useCallback(() => {
+    if (!nextProgram || !reminderId) return;
+    if (reminderSet) {
+      removeReminder(reminderId);
+    } else {
+      addReminder({
+        id: reminderId,
+        channelName: channel.name,
+        programTitle: nextProgram.title,
+        startsAt: nextProgram.start.toISOString(),
+      });
+    }
+  }, [nextProgram, reminderId, reminderSet, addReminder, removeReminder, channel.name]);
+  const catchupDays = catchupManager.getCatchupDays(channel);
 
   const updateProgram = useCallback(() => {
-    const { current, next } = epgManager.getCurrentProgram(channel.name)
-    setCurrentProgram(current)
-    setNextProgram(next)
-    
+    const { current, next } = epgManager.getCurrentProgram(channel.name);
+    setCurrentProgram(current);
+    setNextProgram(next);
+
     if (current) {
-      setProgress(epgManager.getProgramProgress(current))
-      setTimeRemaining(epgManager.getTimeRemaining(current))
+      setProgress(epgManager.getProgramProgress(current));
+      setTimeRemaining(epgManager.getTimeRemaining(current));
     }
-  }, [channel.name])
+  }, [channel.name]);
 
   const handleWatchFromStart = useCallback(() => {
     if (currentProgram && onWatchFromStart) {
-      const url = catchupManager.getWatchFromStartUrl(channel, currentProgram)
+      const url = catchupManager.getWatchFromStartUrl(channel, currentProgram);
       if (url) {
-        onWatchFromStart(url, currentProgram)
+        onWatchFromStart(url, currentProgram);
       }
     }
-  }, [channel, currentProgram, onWatchFromStart])
+  }, [channel, currentProgram, onWatchFromStart]);
 
   useEffect(() => {
     // Initial update
-    updateProgram()
-    
-    // Update every 10 seconds for more responsive UI
-    const interval = setInterval(updateProgram, 10000)
+    updateProgram();
 
-    return () => clearInterval(interval)
-  }, [updateProgram])
+    // Update every 10 seconds for more responsive UI
+    const interval = setInterval(updateProgram, 10000);
+
+    return () => clearInterval(interval);
+  }, [updateProgram]);
 
   // Also update when channel changes
   useEffect(() => {
-    updateProgram()
-  }, [channel.id, updateProgram])
+    updateProgram();
+  }, [channel.id, updateProgram]);
 
   // Show helpful message when no EPG data
   if (!currentProgram && !nextProgram) {
@@ -75,7 +94,7 @@ export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShow
               </p>
             </div>
           </div>
-          
+
           {/* Catchup Button */}
           <div className="pt-2 border-t border-border/50">
             <button
@@ -87,9 +106,9 @@ export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShow
             </button>
           </div>
         </div>
-      )
+      );
     }
-    return null
+    return null;
   }
 
   if (compact) {
@@ -111,8 +130,8 @@ export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShow
               <p className="font-semibold text-sm leading-tight">{currentProgram.title}</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                 <span>
-                  {currentProgram.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
-                  {currentProgram.end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {currentProgram.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} -
+                  {currentProgram.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
                 <span>•</span>
                 <span className="text-primary font-medium">{timeRemaining} left</span>
@@ -124,7 +143,7 @@ export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShow
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              
+
               {/* Watch from Start button */}
               {hasCatchup && onWatchFromStart && progress > 5 && (
                 <button
@@ -138,7 +157,7 @@ export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShow
             </div>
           </div>
         )}
-        
+
         {/* Next Program */}
         {nextProgram && (
           <div className="flex items-start gap-3 pt-2 border-t border-border/50">
@@ -148,9 +167,21 @@ export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShow
             <div className="flex-1 min-w-0">
               <p className="text-xs text-muted-foreground mb-0.5">Next: {nextProgram.title}</p>
               <p className="text-xs text-muted-foreground/70">
-                {nextProgram.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {nextProgram.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </p>
             </div>
+            <button
+              onClick={toggleReminder}
+              className={cn(
+                "p-2 min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-full transition-colors flex-shrink-0",
+                reminderSet
+                  ? "text-primary bg-primary/10 hover:bg-primary/20"
+                  : "text-muted-foreground hover:bg-accent",
+              )}
+              title={reminderSet ? "Cancel reminder" : "Remind me when it starts"}
+            >
+              {reminderSet ? <BellRing className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+            </button>
           </div>
         )}
 
@@ -167,7 +198,7 @@ export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShow
           </div>
         )}
       </div>
-    )
+    );
   }
 
   return (
@@ -193,19 +224,15 @@ export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShow
             </div>
             <div className="text-right text-sm text-muted-foreground">
               <div>
-                {currentProgram.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - 
-                {currentProgram.end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {currentProgram.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} -
+                {currentProgram.end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </div>
-              <div className="text-primary font-medium">
-                {epgManager.getTimeRemaining(currentProgram)} left
-              </div>
+              <div className="text-primary font-medium">{epgManager.getTimeRemaining(currentProgram)} left</div>
             </div>
           </div>
 
           {currentProgram.description && (
-            <p className="text-sm text-muted-foreground mb-3">
-              {currentProgram.description}
-            </p>
+            <p className="text-sm text-muted-foreground mb-3">{currentProgram.description}</p>
           )}
 
           {/* Progress bar */}
@@ -229,26 +256,20 @@ export function ProgramInfo({ channel, compact = false, onWatchFromStart, onShow
                 {nextProgram.category && (
                   <>
                     <span>•</span>
-                    <span className="px-2 py-0.5 bg-background/50 rounded text-xs">
-                      {nextProgram.category}
-                    </span>
+                    <span className="px-2 py-0.5 bg-background/50 rounded text-xs">{nextProgram.category}</span>
                   </>
                 )}
               </div>
               <h4 className="font-semibold">{nextProgram.title}</h4>
             </div>
             <div className="text-sm text-muted-foreground">
-              {nextProgram.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {nextProgram.start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
           </div>
 
-          {nextProgram.description && (
-            <p className="text-sm text-muted-foreground mt-2">
-              {nextProgram.description}
-            </p>
-          )}
+          {nextProgram.description && <p className="text-sm text-muted-foreground mt-2">{nextProgram.description}</p>}
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -124,6 +124,11 @@ body {
   overflow: hidden;
 }
 
+/* Touch comfort: no grey flash on tap (we provide our own active: states) */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Netflix-style animations */
 @keyframes fadeInUp {
   from {
@@ -276,4 +281,37 @@ body {
 
 .tv-mode [role="button"] {
   min-height: 3rem;
+}
+
+/* 10-foot UI: larger base font scales all rem-based sizing for couch distance */
+html.tv-mode {
+  font-size: 18px;
+}
+
+.tv-mode [data-channel-list] [role="button"] {
+  min-height: 3.5rem;
+}
+
+/* Bigger focus target ring on TV for visibility from across the room */
+.tv-mode *:focus-visible,
+.tv-mode [tabindex="0"]:focus {
+  outline-width: 4px;
+}
+
+/* Subtitles readable from couch distance */
+.tv-mode video::cue {
+  font-size: 1.4em;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* Off-screen rows skip layout/paint entirely - keeps 10k-channel lists smooth
+   without JS virtualization (focusable elements stay in the DOM for D-pad nav) */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
+}
+
+.cv-auto-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
 }

@@ -1,80 +1,91 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Folder, Edit, Trash2, Move, FolderPlus } from "lucide-react"
-import { Channel } from "@/lib/types"
-import { useCustomFoldersStore } from "@/lib/store/custom-folders-store"
-import { useChannelManagementStore } from "@/lib/store/channel-management-store"
+import { useEffect, useState } from "react";
+import { Folder, Edit, Trash2, Move, FolderPlus } from "lucide-react";
+import { Channel } from "@/lib/types";
+import { useCustomFoldersStore } from "@/lib/store/custom-folders-store";
+import { useChannelManagementStore } from "@/lib/store/channel-management-store";
+import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
+import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
 
 interface ContextMenuProps {
-  channel: Channel
-  x: number
-  y: number
-  onClose: () => void
-  onRename?: () => void
+  channel: Channel;
+  x: number;
+  y: number;
+  onClose: () => void;
+  onRename?: () => void;
 }
 
 export function ContextMenu({ channel, x, y, onClose, onRename }: ContextMenuProps) {
-  const { folders, moveChannelToFolder, getChannelFolder } = useCustomFoldersStore()
-  const { deleteChannel } = useChannelManagementStore()
-  const [showFolderSubmenu, setShowFolderSubmenu] = useState(false)
+  const { folders, moveChannelToFolder, getChannelFolder } = useCustomFoldersStore();
+  const { deleteChannel, restoreChannel } = useChannelManagementStore();
+  const { addToast } = useToast();
+  const [showFolderSubmenu, setShowFolderSubmenu] = useState(false);
 
-  const currentFolder = getChannelFolder(channel.id)
+  const currentFolder = getChannelFolder(channel.id);
+  const trapRef = useFocusTrap<HTMLDivElement>(true, onClose);
 
   useEffect(() => {
-    const handleClickOutside = () => onClose()
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-
-    document.addEventListener("click", handleClickOutside)
-    document.addEventListener("keydown", handleEscape)
-
-    return () => {
-      document.removeEventListener("click", handleClickOutside)
-      document.removeEventListener("keydown", handleEscape)
-    }
-  }, [onClose])
+    const handleClickOutside = () => onClose();
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [onClose]);
 
   const handleMoveToFolder = (folderId: string) => {
-    moveChannelToFolder(channel.id, currentFolder?.id || null, folderId)
-    onClose()
-    window.dispatchEvent(new CustomEvent('channelDeleted')) // Trigger refresh
-  }
+    moveChannelToFolder(channel.id, currentFolder?.id || null, folderId);
+    onClose();
+    window.dispatchEvent(new CustomEvent("channelDeleted")); // Trigger refresh
+  };
 
   const handleRemoveFromFolder = () => {
     if (currentFolder) {
-      const { removeChannelFromFolder } = useCustomFoldersStore.getState()
-      removeChannelFromFolder(currentFolder.id, channel.id)
-      onClose()
-      window.dispatchEvent(new CustomEvent('channelDeleted'))
+      const { removeChannelFromFolder } = useCustomFoldersStore.getState();
+      removeChannelFromFolder(currentFolder.id, channel.id);
+      onClose();
+      window.dispatchEvent(new CustomEvent("channelDeleted"));
     }
-  }
+  };
 
   const handleDelete = () => {
-    if (confirm(`Delete "${channel.name}"?\n\nYou can restore it from Settings → Channels → Trash`)) {
-      deleteChannel({
-        id: channel.id,
-        name: channel.name,
-        url: channel.url,
-        logo: channel.logo,
-        group: channel.group,
-      })
-      onClose()
-    }
-  }
+    deleteChannel({
+      id: channel.id,
+      name: channel.name,
+      url: channel.url,
+      logo: channel.logo,
+      group: channel.group,
+    });
+    addToast(`Deleted "${channel.name}"`, "info", 5000, {
+      label: "Undo",
+      onClick: () => {
+        restoreChannel(channel.id);
+        window.dispatchEvent(new CustomEvent("channelDeleted"));
+      },
+    });
+    onClose();
+  };
 
   const handleRename = () => {
-    onRename?.()
-    onClose()
-  }
+    onRename?.();
+    onClose();
+  };
+
+  // Phones get a thumb-friendly bottom sheet; pointer devices get a menu at the cursor
+  const isSheet = typeof window !== "undefined" && window.matchMedia("(max-width: 640px)").matches;
 
   return (
     <div
-      className="fixed z-50 min-w-48 bg-popover border rounded-lg shadow-lg py-1"
-      style={{ left: x, top: y }}
+      ref={trapRef}
+      className={cn(
+        "fixed z-50 bg-popover border shadow-lg py-1",
+        isSheet
+          ? "left-0 right-0 bottom-0 rounded-t-2xl pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 animate-fade-in-up [&>button]:py-3 [&>div>button]:py-3"
+          : "min-w-48 rounded-lg",
+      )}
+      style={isSheet ? undefined : { left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
     >
+      {isSheet && <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-muted-foreground/40" />}
       {/* Rename */}
       <button
         onClick={handleRename}
@@ -138,5 +149,5 @@ export function ContextMenu({ channel, x, y, onClose, onRename }: ContextMenuPro
         Delete
       </button>
     </div>
-  )
+  );
 }

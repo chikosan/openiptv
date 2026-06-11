@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Search, Star, Grid3x3, List, Filter, FolderTree, ListTree, FolderPlus, Edit, Trash2 } from "lucide-react";
+import { useState, useMemo, useEffect, useRef, useCallback, useDeferredValue } from "react";
+import { Search, Star, Grid3x3, List, Filter, FolderTree, ListTree, FolderPlus, RefreshCw, X } from "lucide-react";
 import { usePlaylistStore } from "@/lib/store/playlist-store";
 import { useChannelManagementStore } from "@/lib/store/channel-management-store";
 import { useCustomFoldersStore } from "@/lib/store/custom-folders-store";
@@ -25,7 +25,14 @@ export function ChannelList() {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
-  const { searchChannels, getVisibleChannels, getFavoriteChannels, currentChannel } = usePlaylistStore();
+  const { searchChannels, getVisibleChannels, getFavoriteChannels, currentChannel, playlists, refreshPlaylist } =
+    usePlaylistStore();
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const pullStartYRef = useRef<number | null>(null);
+  // Keep typing snappy on huge playlists: filter with the deferred value
+  const deferredQuery = useDeferredValue(searchQuery);
   const { getHiddenChannelIds } = useChannelManagementStore();
   const { folders, createFolder, renameFolder, deleteFolder, getFolders } = useCustomFoldersStore();
 
@@ -70,8 +77,41 @@ export function ChannelList() {
     }
   }, []);
 
-  // Get hidden channel IDs once and memoize
-  const hiddenChannelIds = useMemo(() => getHiddenChannelIds(), [getHiddenChannelIds]);
+  // Pull-to-refresh: drag down from the top of the list to re-fetch playlists
+  const handlePullStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (listRef.current && listRef.current.scrollTop <= 0 && !isRefreshing) {
+        pullStartYRef.current = e.touches[0]?.clientY ?? null;
+      }
+    },
+    [isRefreshing],
+  );
+
+  const handlePullMove = useCallback((e: React.TouchEvent) => {
+    const startY = pullStartYRef.current;
+    if (startY === null || !listRef.current || listRef.current.scrollTop > 0) return;
+    const dy = (e.touches[0]?.clientY ?? startY) - startY;
+    setPullDistance(dy > 0 ? Math.min(dy * 0.5, 80) : 0);
+  }, []);
+
+  const handlePullEnd = useCallback(async () => {
+    const distance = pullDistance;
+    pullStartYRef.current = null;
+    setPullDistance(0);
+    if (distance < 60 || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled(playlists.map((p) => refreshPlaylist(p.id)));
+      setRefreshKey((prev) => prev + 1);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [pullDistance, isRefreshing, playlists, refreshPlaylist]);
+
+  // Hidden channel IDs - refreshKey ties this to 'channelDeleted' events,
+  // since the store getter itself has a stable identity
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const hiddenChannelIds = useMemo(() => getHiddenChannelIds(), [getHiddenChannelIds, refreshKey]);
 
   // Force refresh when hidden channels change
   useEffect(() => {
@@ -94,29 +134,55 @@ export function ChannelList() {
     let allChannels = [];
     if (filterMode === "favorites") {
       allChannels = getFavoriteChannels();
-    } else if (searchQuery.trim()) {
-      allChannels = searchChannels(searchQuery);
+    } else if (deferredQuery.trim()) {
+      allChannels = searchChannels(deferredQuery);
     } else {
       allChannels = getVisibleChannels();
     }
 
-    // Filter out hidden/deleted channels
-    return allChannels.filter((ch) => !hiddenIds.has(ch.id));
+    // Filter out hidden/deleted channels, then by selected category chip
+    let result = allChannels.filter((ch) => !hiddenIds.has(ch.id));
+    if (selectedGroup) {
+      result = result.filter((ch) => ch.group === selectedGroup);
+    }
+    return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, filterMode, searchChannels, getVisibleChannels, getFavoriteChannels, hiddenChannelIds, refreshKey]);
+  }, [
+    deferredQuery,
+    filterMode,
+    selectedGroup,
+    searchChannels,
+    getVisibleChannels,
+    getFavoriteChannels,
+    hiddenChannelIds,
+    refreshKey,
+  ]);
+
+  // Category chips: group-title values from the full visible list (top 12 by count)
+  const categoryChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const ch of getVisibleChannels()) {
+      if (ch.group) counts.set(ch.group, (counts.get(ch.group) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([group]) => group);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getVisibleChannels, refreshKey]);
 
   const favoriteCount = getFavoriteChannels().length;
 
   // Group channels by country if organize mode is "country"
   const organizedChannels = useMemo(() => {
-    if (organizeMode === "flat" || searchQuery.trim()) {
+    if (organizeMode === "flat" || deferredQuery.trim()) {
       return { type: "flat" as const, channels };
     }
 
     const grouped = groupChannelsByCountry(channels);
     const sorted = sortCountries(grouped, ["IL", "US", "UK"]); // IL first!
     return { type: "country" as const, groups: sorted };
-  }, [channels, organizeMode, searchQuery]);
+  }, [channels, organizeMode, deferredQuery]);
 
   return (
     <div className="flex flex-col h-full bg-card">
@@ -172,11 +238,24 @@ export function ChannelList() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
+            id="channel-search"
+            name="channel-search"
+            inputMode="search"
+            enterKeyHint="search"
             placeholder="Search channels..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-md border bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full pl-9 pr-10 py-2 rounded-md border bg-background text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-1 top-1/2 -translate-y-1/2 p-2 min-h-[36px] min-w-[36px] inline-flex items-center justify-center rounded-full hover:bg-accent text-muted-foreground"
+              title="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -201,6 +280,34 @@ export function ChannelList() {
             Favorites {favoriteCount > 0 && `(${favoriteCount})`}
           </button>
         </div>
+
+        {/* Category chips */}
+        {categoryChips.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent pb-1 -mb-1">
+            <button
+              onClick={() => setSelectedGroup(null)}
+              className={cn(
+                "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors min-h-[32px]",
+                !selectedGroup ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80",
+              )}
+            >
+              All categories
+            </button>
+            {categoryChips.map((group) => (
+              <button
+                key={group}
+                onClick={() => setSelectedGroup(selectedGroup === group ? null : group)}
+                className={cn(
+                  "flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors min-h-[32px] max-w-[10rem] truncate",
+                  selectedGroup === group ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80",
+                )}
+                title={group}
+              >
+                {group}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* New Folder Creation */}
         {isCreatingFolder && (
@@ -253,10 +360,29 @@ export function ChannelList() {
         )}
       </div>
 
+      {/* Pull-to-refresh indicator */}
+      {(pullDistance > 0 || isRefreshing) && (
+        <div
+          className="flex items-center justify-center text-muted-foreground overflow-hidden transition-[height]"
+          style={{ height: isRefreshing ? 40 : pullDistance }}
+        >
+          <RefreshCw
+            className={cn(
+              "h-5 w-5",
+              isRefreshing && "animate-spin",
+              !isRefreshing && pullDistance >= 60 && "text-primary",
+            )}
+          />
+        </div>
+      )}
+
       {/* Channel List - Independent scrolling */}
       <div
         ref={listRef}
         onKeyDown={handleListKeyDown}
+        onTouchStart={handlePullStart}
+        onTouchMove={handlePullMove}
+        onTouchEnd={handlePullEnd}
         className="flex-1 overflow-y-auto overflow-x-hidden p-2 scroll-smooth min-h-0"
       >
         {channels.length === 0 ? (
