@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: docker-registry.app.chikorel.com
+  IMAGE: openiptv
+
+jobs:
+  ci:
+    name: ci
+    runs-on: [self-hosted, linux, openiptv]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  build:
+    name: build
+    needs: ci
+    runs-on: [self-hosted, linux, openiptv]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to registry
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+
+      - name: Build and push
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          docker build \
+            -t "$REGISTRY/$IMAGE:latest" \
+            -t "$REGISTRY/$IMAGE:sha-$SHORT_SHA" \
+            .
+          docker push "$REGISTRY/$IMAGE:latest"
+          docker push "$REGISTRY/$IMAGE:sha-$SHORT_SHA"
+          echo "Pushed $REGISTRY/$IMAGE:sha-$SHORT_SHA"
+
+      - name: Logout
+        if: always()
+        run: docker logout "$REGISTRY"
