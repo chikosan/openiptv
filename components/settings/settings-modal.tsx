@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   X,
   Download,
+  Upload,
   Trash2,
   Plus,
   Check,
@@ -20,6 +21,7 @@ import {
   Settings,
 } from "lucide-react";
 import { usePlaylistStore } from "@/lib/store/playlist-store";
+import { isValidM3U8Url } from "@/lib/m3u8-parser";
 import { RecordingsPanel } from "@/components/recordings/recordings-panel";
 import { EPGSettings } from "./epg-settings";
 import { ChannelAdminPanel } from "@/components/admin/channel-admin-panel";
@@ -38,21 +40,71 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const { playlists, removePlaylist, currentPlaylist, refreshPlaylist, updatePlaylistSettings } = usePlaylistStore();
+  const {
+    playlists,
+    removePlaylist,
+    currentPlaylist,
+    refreshPlaylist,
+    updatePlaylistSettings,
+    addPlaylist,
+    addPlaylistFromFile,
+  } = usePlaylistStore();
   const [activeTab, setActiveTab] = useState<
     "playlists" | "player" | "appearance" | "recordings" | "epg" | "channels" | "parental" | "statistics" | "backup"
   >("playlists");
   const [newPlaylistUrl, setNewPlaylistUrl] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [addError, setAddError] = useState("");
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [refreshStatus, setRefreshStatus] = useState<{
     playlistId: string;
     message: string;
     type: "success" | "error";
   } | null>(null);
+  const addFileInputRef = useRef<HTMLInputElement>(null);
 
   // Trap focus inside the dialog (Escape closes, focus restored to opener)
   const trapRef = useFocusTrap<HTMLDivElement>(isOpen, onClose);
+
+  const handleAddPlaylistUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddError("");
+
+    if (!newPlaylistUrl.trim()) {
+      setAddError("Please enter a playlist URL");
+      return;
+    }
+    if (!isValidM3U8Url(newPlaylistUrl)) {
+      setAddError("Please enter a valid M3U8 URL (must end with .m3u8 or .m3u)");
+      return;
+    }
+
+    setIsAdding(true);
+    try {
+      await addPlaylist(newPlaylistUrl);
+      setNewPlaylistUrl("");
+    } catch (error) {
+      setAddError(error instanceof Error ? error.message : "Failed to add playlist");
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleAddPlaylistFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setAddError("");
+    setIsAdding(true);
+    try {
+      await addPlaylistFromFile(file);
+    } catch (error) {
+      setAddError(error instanceof Error ? error.message : "Failed to add playlist");
+    } finally {
+      setIsAdding(false);
+    }
+  };
 
   const handleRefresh = async (playlistId: string) => {
     setRefreshingId(playlistId);
@@ -355,19 +407,56 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     ))}
                   </div>
 
-                  {/* Add Playlist Section - Coming Soon */}
-                  <div className="border-t pt-6">
+                  {/* Add Playlist Section */}
+                  <div className="border-t pt-6 space-y-3">
                     <h3 className="font-semibold mb-3">Add New Playlist</h3>
                     <p className="text-sm text-muted-foreground mb-4">
                       Add additional M3U8 playlists to switch between different channel sources.
                     </p>
-                    <div className="p-4 rounded-lg bg-muted/50 border-2 border-dashed">
-                      <p className="text-sm text-center text-muted-foreground">
-                        Multiple playlist management coming soon!
-                        <br />
-                        For now, delete existing playlist and add a new one from the welcome screen.
-                      </p>
+
+                    <form onSubmit={handleAddPlaylistUrl} className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="Enter M3U8 playlist URL"
+                        value={newPlaylistUrl}
+                        onChange={(e) => setNewPlaylistUrl(e.target.value)}
+                        disabled={isAdding}
+                        className="flex-1 px-3 py-2 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isAdding}
+                        className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add
+                      </button>
+                    </form>
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-px bg-border" />
+                      <span className="text-xs text-muted-foreground">OR</span>
+                      <div className="flex-1 h-px bg-border" />
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => addFileInputRef.current?.click()}
+                      disabled={isAdding}
+                      className="w-full px-4 py-2 rounded-lg border text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Load Playlist from File
+                    </button>
+                    <input
+                      ref={addFileInputRef}
+                      type="file"
+                      accept=".m3u,.m3u8,text/plain"
+                      onChange={handleAddPlaylistFile}
+                      className="hidden"
+                    />
+
+                    {addError && <p className="text-sm text-destructive">{addError}</p>}
                   </div>
                 </div>
               )}

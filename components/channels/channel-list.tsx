@@ -173,15 +173,20 @@ export function ChannelList() {
 
   const favoriteCount = getFavoriteChannels().length;
 
-  // Group channels by country if organize mode is "country"
+  // Group channels by country if organize mode is "country" — movies/series get their
+  // own sections instead of being grouped (often wrongly) alongside live TV countries
   const organizedChannels = useMemo(() => {
     if (organizeMode === "flat" || deferredQuery.trim()) {
       return { type: "flat" as const, channels };
     }
 
-    const grouped = groupChannelsByCountry(channels);
+    const liveChannels = channels.filter((ch) => !ch.isVod);
+    const movies = channels.filter((ch) => ch.isVod && ch.vodType !== "series" && ch.vodType !== "episode");
+    const series = channels.filter((ch) => ch.isVod && (ch.vodType === "series" || ch.vodType === "episode"));
+
+    const grouped = groupChannelsByCountry(liveChannels);
     const sorted = sortCountries(grouped, ["IL", "US", "UK"]); // IL first!
-    return { type: "country" as const, groups: sorted };
+    return { type: "country" as const, groups: sorted, movies, series };
   }, [channels, organizeMode, deferredQuery]);
 
   return (
@@ -425,6 +430,26 @@ export function ChannelList() {
 
             {/* Recorded Channels Folder */}
             <RecordedFolder viewMode={viewMode} currentChannelId={currentChannel?.id} defaultExpanded={false} />
+
+            {/* Movies & Series get their own sections, kept out of the country folders */}
+            {organizedChannels.movies.length > 0 && (
+              <CountryFolder
+                country={{ code: "MOVIES", name: "Movies", flag: "🎬" }}
+                channels={organizedChannels.movies}
+                viewMode={viewMode}
+                currentChannelId={currentChannel?.id}
+                defaultExpanded={false}
+              />
+            )}
+            {organizedChannels.series.length > 0 && (
+              <CountryFolder
+                country={{ code: "SERIES", name: "Series", flag: "📺" }}
+                channels={organizedChannels.series}
+                viewMode={viewMode}
+                currentChannelId={currentChannel?.id}
+                defaultExpanded={false}
+              />
+            )}
 
             {/* Then Country Folders */}
             {organizedChannels.groups.map((group) => (

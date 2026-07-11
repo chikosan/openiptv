@@ -1,7 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
   <rect width="32" height="32" rx="6" fill="#0a0a0a"/>
-  <path d="M8 10C8 8.89543 8.89543 8 10 8H22C23.1046 8 24 8.89543 24 10V18C24 19.1046 23.1046 20 22 20H10C8.89543 20 8 19.1046 8 18V10Z" stroke="#3b82f6" stroke-width="2"/>
-  <path d="M12 24H20" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
-  <path d="M16 20V24" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="16" cy="14" r="2" fill="#3b82f6"/>
+  <!-- TV body -->
+  <rect x="3" y="5" width="26" height="17" rx="2" fill="#111827"/>
+  <rect x="3" y="5" width="26" height="17" rx="2" stroke="#3b82f6" stroke-width="1.5"/>
+  <!-- Screen -->
+  <rect x="5" y="7" width="22" height="13" rx="1.5" fill="#080c14"/>
+  <!-- Play triangle -->
+  <path d="M13 10L21 13.5L13 17Z" fill="#3b82f6"/>
+  <!-- Stand neck -->
+  <path d="M16 22V26" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Stand base -->
+  <path d="M12 26H20" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
 </svg>

@@ -104,6 +104,7 @@ export function ChannelInfoOverlay({ channel, isVisible, onHide, videoElement, h
               src={channel.logo}
               alt={channel.name}
               fill
+              sizes="64px"
               className="object-contain p-1"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";

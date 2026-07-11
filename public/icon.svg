@@ -1,7 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
   <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
-  <path d="M128 160C128 142.327 142.327 128 160 128H352C369.673 128 384 142.327 384 160V288C384 305.673 369.673 320 352 320H160C142.327 320 128 305.673 128 288V160Z" stroke="#3b82f6" stroke-width="32"/>
-  <path d="M192 384H320" stroke="#3b82f6" stroke-width="32" stroke-linecap="round"/>
-  <path d="M256 320V384" stroke="#3b82f6" stroke-width="32" stroke-linecap="round"/>
-  <circle cx="256" cy="224" r="32" fill="#3b82f6"/>
+  <!-- TV body -->
+  <rect x="64" y="96" width="384" height="264" rx="32" fill="#111827"/>
+  <rect x="64" y="96" width="384" height="264" rx="32" stroke="#3b82f6" stroke-width="10"/>
+  <!-- Screen -->
+  <rect x="92" y="124" width="328" height="208" rx="18" fill="#080c14"/>
+  <!-- Play button glow -->
+  <circle cx="256" cy="228" r="60" fill="#1e40af" fill-opacity="0.18"/>
+  <!-- Play triangle (centroid at 256,228) -->
+  <path d="M234 200L302 228L234 256Z" fill="#3b82f6"/>
+  <!-- Stand neck -->
+  <path d="M256 360V396" stroke="#3b82f6" stroke-width="14" stroke-linecap="round"/>
+  <!-- Stand base -->
+  <path d="M196 396H316" stroke="#3b82f6" stroke-width="14" stroke-linecap="round"/>
 </svg>

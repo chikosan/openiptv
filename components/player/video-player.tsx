@@ -72,8 +72,19 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
   const isTVMode = useTVMode();
 
   // Use streamUrl if provided (for catchup), otherwise use channel URL
-  const currentStreamUrl = streamUrl || channel.url;
+  const baseStreamUrl = streamUrl || channel.url;
+  // Xtream Codes panels list raw continuous-TS links (…/id.ts) that browsers can't
+  // play directly, but the same id also serves a real HLS manifest at …/id.m3u8 —
+  // try that first so channel switches don't pay for a doomed .ts request every time.
+  const m3u8Candidate = baseStreamUrl.replace(/\.ts(\?|$)/i, ".m3u8$1");
+  const triesM3u8First = m3u8Candidate !== baseStreamUrl;
+  const [urlOverride, setUrlOverride] = useState<string | null>(null);
+  const currentStreamUrl = urlOverride ?? (triesM3u8First ? m3u8Candidate : baseStreamUrl);
   const isCatchupMode = !!streamUrl;
+
+  useEffect(() => {
+    setUrlOverride(null);
+  }, [channel.id, streamUrl]);
 
   // Track watch time
   useEffect(() => {
@@ -223,7 +234,7 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
         {
           controls: true,
           responsive: true,
-          fluid: true,
+          fill: true,
           autoplay: true,
           preload: "auto",
           liveui: true,
@@ -396,7 +407,21 @@ export function VideoPlayer({ channel, streamUrl, onNextChannel, onPrevChannel }
           console.warn(`HLS ${data.type}: ${data.details} (non-fatal)`);
           return;
         }
-        console.error(`HLS fatal ${data.type}: ${data.details}`);
+        console.warn(`HLS fatal ${data.type}: ${data.details}`);
+
+        // The guessed .m3u8 manifest didn't exist — fall back to the original
+        // .ts link once before giving up (it likely won't play either, but this
+        // keeps the retry/error flow honest instead of getting stuck).
+        if (
+          triesM3u8First &&
+          urlOverride === null &&
+          (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
+            data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT ||
+            data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR)
+        ) {
+          setUrlOverride(baseStreamUrl);
+          return;
+        }
 
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
