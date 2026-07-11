@@ -1,12 +1,12 @@
-"use client"
+"use client";
 
-import { Cast, Volume2 } from "lucide-react"
-import { Channel } from "@/lib/types"
-import Image from "next/image"
+import { Cast, Volume2 } from "lucide-react";
+import { Channel } from "@/lib/types";
+import Image from "next/image";
 
 interface CastOverlayProps {
-  channel: Channel
-  deviceName: string
+  channel: Channel;
+  deviceName: string;
 }
 
 export function CastOverlay({ channel, deviceName }: CastOverlayProps) {
@@ -17,13 +17,7 @@ export function CastOverlay({ channel, deviceName }: CastOverlayProps) {
         {channel.logo && (
           <div className="mb-6 flex justify-center">
             <div className="relative w-32 h-24 rounded-lg overflow-hidden border-2 border-primary/30">
-              <Image
-                src={channel.logo}
-                alt={channel.name}
-                fill
-                className="object-cover"
-                unoptimized
-              />
+              <Image src={channel.logo} alt={channel.name} fill sizes="128px" className="object-cover" unoptimized />
             </div>
           </div>
         )}
@@ -38,9 +32,7 @@ export function CastOverlay({ channel, deviceName }: CastOverlayProps) {
 
         {/* Status */}
         <h3 className="text-2xl font-bold mb-2">Casting to TV</h3>
-        <p className="text-muted-foreground mb-4">
-          {channel.name}
-        </p>
+        <p className="text-muted-foreground mb-4">{channel.name}</p>
 
         {/* Device Name */}
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -49,10 +41,8 @@ export function CastOverlay({ channel, deviceName }: CastOverlayProps) {
         </div>
 
         {/* Control Hint */}
-        <p className="mt-6 text-sm text-muted-foreground">
-          Use your phone to control playback
-        </p>
+        <p className="mt-6 text-sm text-muted-foreground">Use your phone to control playback</p>
       </div>
     </div>
-  )
+  );
 }

@@ -1,55 +1,72 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Tv, Plus, Loader2 } from "lucide-react"
-import { usePlaylistStore } from "@/lib/store/playlist-store"
-import { isValidM3U8Url } from "@/lib/m3u8-parser"
+import { useState, useRef } from "react";
+import { Tv, Plus, Loader2, Upload } from "lucide-react";
+import { usePlaylistStore } from "@/lib/store/playlist-store";
+import { isValidM3U8Url } from "@/lib/m3u8-parser";
 
 export function WelcomeScreen() {
-  const [url, setUrl] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
-  const { addPlaylist } = usePlaylistStore()
+  const [url, setUrl] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { addPlaylist, addPlaylistFromFile } = usePlaylistStore();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const describeError = (err: unknown) => {
+    let errorMessage = "Failed to add playlist";
+    if (err instanceof Error) {
+      errorMessage = err.message;
+      if (err.message.includes("Failed to fetch")) {
+        errorMessage = "Unable to load playlist. The URL might be invalid or the server is not responding.";
+      } else if (err.message.includes("Empty playlist")) {
+        errorMessage = "The playlist appears to be empty or invalid format.";
+      } else if (err.message.includes("No channels found")) {
+        errorMessage = "No channels found in the playlist. Please check the file or URL.";
+      }
+    }
+    return errorMessage;
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setError("");
+    setIsLoading(true);
+    try {
+      await addPlaylistFromFile(file);
+    } catch (err) {
+      setError(describeError(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
+    e.preventDefault();
+    setError("");
 
     if (!url.trim()) {
-      setError("Please enter a playlist URL")
-      return
+      setError("Please enter a playlist URL");
+      return;
     }
 
     if (!isValidM3U8Url(url)) {
-      setError("Please enter a valid M3U8 URL (must end with .m3u8 or .m3u)")
-      return
+      setError("Please enter a valid M3U8 URL (must end with .m3u8 or .m3u)");
+      return;
     }
 
-    setIsLoading(true)
-    
+    setIsLoading(true);
+
     try {
-      await addPlaylist(url)
+      await addPlaylist(url);
     } catch (err) {
-      let errorMessage = "Failed to add playlist"
-      
-      if (err instanceof Error) {
-        errorMessage = err.message
-        
-        // Provide helpful hints for common errors
-        if (err.message.includes("Failed to fetch")) {
-          errorMessage = "Unable to load playlist. The URL might be invalid or the server is not responding."
-        } else if (err.message.includes("Empty playlist")) {
-          errorMessage = "The playlist appears to be empty or invalid format."
-        } else if (err.message.includes("No channels found")) {
-          errorMessage = "No channels found in the playlist. Please check the URL."
-        }
-      }
-      
-      setError(errorMessage)
+      setError(describeError(err));
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
@@ -108,9 +125,7 @@ export function WelcomeScreen() {
               disabled={isLoading}
               className="w-full px-4 py-3 rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
             />
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
 
           <button
@@ -132,11 +147,36 @@ export function WelcomeScreen() {
           </button>
         </form>
 
+        {/* Divider */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-xs text-muted-foreground">OR</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+
+        {/* Load from local file */}
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isLoading}
+          className="w-full px-6 py-3 rounded-lg border font-medium hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+          <Upload className="h-5 w-5" />
+          Load Playlist from File
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".m3u,.m3u8,text/plain"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
         {/* Example */}
         <div className="text-xs text-muted-foreground">
           <p>Example: http://example.com/playlist.m3u8</p>
         </div>
       </div>
     </div>
-  )
+  );
 }

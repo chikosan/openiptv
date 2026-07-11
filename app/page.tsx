@@ -196,7 +196,7 @@ export default function Home() {
     <MainLayout>
       <div className="flex flex-col lg:flex-row h-full overflow-hidden">
         {/* Main Content Area */}
-        <div className="flex-none max-h-[60dvh] lg:max-h-none lg:flex-1 flex flex-col gap-2 md:gap-4 p-2 md:p-4 overflow-y-auto">
+        <div className="flex-none max-h-[60dvh] lg:max-h-none lg:flex-1 flex flex-col gap-2 md:gap-4 p-2 md:p-4 overflow-y-auto lg:overflow-hidden">
           {/* Quick rows (Netflix-style) */}
           {!currentChannel && (
             <>
@@ -206,7 +206,7 @@ export default function Home() {
           )}
 
           {/* Video Player - stays pinned while scrolling info cards on mobile */}
-          <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex-shrink-0 sticky top-0 z-30 lg:static">
+          <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden flex-shrink-0 sticky top-0 z-30 lg:static lg:aspect-auto lg:flex-1 lg:min-h-[200px]">
             {currentChannel ? (
               <ErrorBoundary>
                 <Suspense fallback={<VideoPlayerSkeleton />}>
@@ -244,6 +244,7 @@ export default function Home() {
                         src={currentChannel.logo}
                         alt={currentChannel.name}
                         fill
+                        sizes="64px"
                         className="object-contain p-1"
                         unoptimized
                       />
