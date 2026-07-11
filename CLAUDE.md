@@ -66,13 +66,25 @@ Pushing to `main` or tagging `v*` triggers `.github/workflows/docker-publish.yml
 
 ## Release Process
 
-Three artifacts ship with each release: Android TV APK, Android phone APK, and the server Docker image.
+Four things ship with each release: Android TV APK, Android phone APK, the server Docker image, and a **GitHub Release** (tag + notes + attached APKs) — don't stop after building/pushing the Docker image, the GitHub Release is a separate explicit step (`gh release create`), it does not happen automatically.
 
 ### Prerequisites (one-time)
 
 - Docker Desktop running (for APK builds — no Java needed)
 - Node.js 18+ on Mac (`brew install node`)
 - ADB installed (`brew install android-platform-tools`)
+- `gh` CLI authenticated (for the GitHub Release step)
+
+### 0. Bump version and tag
+
+Bump `"version"` in `package.json` to match the new tag (e.g. `1.2.0` for `v1.2.0`). Merge the release PR to `main` first, then tag and push:
+
+```bash
+git tag -a v1.2.0 -m "v1.2.0: <short summary>"
+git push origin v1.2.0
+```
+
+This tag push (and any push to `main`) triggers `.github/workflows/docker-publish.yml`, which builds and pushes the Docker image to `ghcr.io/chikosan/openiptv` — no manual Docker build/push needed.
 
 ### 1. Build Android TV APK
 
@@ -116,6 +128,19 @@ adb install -r dist/openiptv-tv.apk
 adb connect <phone-ip>:5555
 adb install -r dist/openiptv-phone.apk
 ```
+
+### 5. Publish the GitHub Release
+
+Do this explicitly — pushing the tag only triggers the Docker build, it does **not** create a GitHub Release on its own.
+
+```bash
+gh release create v1.2.0 \
+  --title "v1.2.0 — <short summary>" \
+  --notes-file /path/to/notes.md \
+  dist/openiptv-tv.apk dist/openiptv-phone.apk
+```
+
+Write the notes covering what changed (grouped by area, not a raw commit list), plus a "Release artifacts" table and sideload instructions — see prior releases (`gh release view v1.0.0`) for the expected format.
 
 ### Build variant reference
 
